@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyAlarm — know when it's flyable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+<!-- FlyAlarm app v1.1 -->
+</head>
+<body>
+<div class="hero">
+  <span class="cloud c1"></span><span class="cloud c2"></span>
+  <div class="wrap">
+    <header>
+      <div class="mark">
+        <a href="FlyAlarm Landing v2.dc.html" class="mark-link" title="FlyAlarm home">
+        <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M30 8 Q36 2.5 42 8" stroke="var(--amber)" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".8"/>
+          <circle cx="36" cy="12.5" r="2.6" fill="var(--amber)"/>
+        </svg>
+        <span class="wordmark">FlyAlarm</span>
+        </a>
+      </div>
+      <div class="head-right">
+      </div>
+      <div id="today-line"></div>
+    </header>
+    <div class="head-meta"><span id="source"></span><span id="status"></span></div>
+
+    <div class="settings">
+      <button class="btn btn-small" id="geo">Use my location</button>
+      <span class="around">Around <b id="around-name">—</b></span>
+      <label>Lat <input id="lat" type="number" step="0.001" readonly tabindex="-1" aria-readonly="true"></label>
+      <label>Lon <input id="lon" type="number" step="0.001" readonly tabindex="-1" aria-readonly="true"></label>
+      <label>Radius
+        <select id="radius">
+          <option value="25">25 km</option>
+          <option value="50">50 km</option>
+          <option value="100" selected>100 km</option>
+          <option value="200">200 km</option>
+          <option value="country">Country wide</option>
+        </select>
+      </label>
+      <button class="btn btn-primary" id="search">Find flyable sites</button>
+    </div>
+  </div>
+  <div class="ridge" aria-hidden="true"></div>
+  <div class="beacon" aria-hidden="true"><i></i><i></i><b></b></div>
+</div>
+
+<div class="wrap">
+  <div id="alert" hidden></div>
+  <div id="banner" hidden></div>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Pilot profile">
+      <button data-tier="conservative">Conservative</button>
+      <button data-tier="standard">Standard</button>
+      <button data-tier="performance">Performance</button>
+    </div>
+    <span id="tier-blurb"></span>
+    <nav id="day-tabs" aria-label="Forecast day"></nav>
+  </div>
+
+  <div class="legend">
+    <span><i class="l-good"></i>good hour</span>
+    <span><i class="l-ok"></i>flyable</span>
+    <span><i class="l-soft"></i>strong for profile</span>
+    <span><i class="l-gated"></i>no-go</span>
+  </div>
+
+  <main id="cards"></main>
+
+  <footer>
+    <strong>Decision support only — not a safety authority.</strong>
+    Scores come from raw model data (Open-Meteo best-match) with simplified site rules;
+    10 m model wind underestimates launch wind on ridges. Always check the sky, the windsock
+    and local pilots before flying. Sites come from the online ParaglidingEarth database
+    merged with a built-in Bulgarian pack; entries marked “approx. data” need local verification.
+    On each card the compass shows the takeoff sector (solid shading = good direction, faint = possible) and the forecast wind arrow; scores now reward wind blowing straight into the launch axis.
+    Thresholds live in the <code>TIERS</code> block at the top of this file.
+  </footer>
+</div>
+
+
+
+<script src="./core.js"></script>
+<script src="./ui.js" defer></script>
+</body>
+</html>
