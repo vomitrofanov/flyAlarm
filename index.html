@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyAlarm — never miss a flyable day</title>
+<meta name="description" content="FlyAlarm watches the forecast for every paragliding site around you and alerts you the evening before a flyable day. Skill-tiered scoring, takeoff-sector checks, Bulgaria first.">
+<meta name="theme-color" content="#0b1017">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M4 40 L18 25 L26 33 L36 21 L44 29' stroke='%2374bddf' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M29 10 Q36 3.5 43 10' stroke='%23e2a63e' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='36' cy='16.8' r='2.2' fill='%23e2a63e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0b1017;--accent:#74bddf;}
+a{color:#74bddf;text-decoration:none;}
+a:hover{color:#9ed3ea;}
+html{scroll-behavior:smooth;}
+@keyframes fa-ping{0%{transform:scale(.35);opacity:.9}70%{opacity:0}100%{transform:scale(1);opacity:0}}
+@keyframes fa-glide{0%{left:-100px;top:30%}25%{top:25%}50%{top:33%}75%{top:24%}100%{left:104%;top:29%}}
+@keyframes fa-drift{0%{transform:translateX(0)}100%{transform:translateX(-140px)}}
+@keyframes fa-notif{0%{opacity:0;transform:translateY(16px)}6%,30%{opacity:1;transform:translateY(0)}36%,100%{opacity:0;transform:translateY(-10px)}}
+@keyframes fa-fadeup{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fa-blink{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div style="font-family:'IBM Plex Sans',sans-serif;color:#e8edf3;background:#0b1017;overflow-x:hidden;">
+
+  <!-- ================= HERO (full screen) ================= -->
+  <section style="position:relative;min-height:100vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#1d2d40 0%,#131d2a 52%,#0b1017 100%);overflow:hidden;">
+
+    <!-- ambient clouds -->
+    <div style="position:absolute;top:14%;left:6%;width:260px;height:48px;border-radius:48px;background:#ffffff;opacity:.045;filter:blur(7px);animation:fa-drift 30s linear infinite alternate;"></div>
+    <div style="position:absolute;top:34%;left:58%;width:340px;height:56px;border-radius:56px;background:#ffffff;opacity:.035;filter:blur(9px);animation:fa-drift 40s linear infinite alternate-reverse;"></div>
+    <div style="position:absolute;top:8%;left:72%;width:180px;height:38px;border-radius:38px;background:#ffffff;opacity:.05;filter:blur(6px);animation:fa-drift 24s linear infinite alternate;"></div>
+
+    <!-- glider drifting far behind content -->
+    <div style="position:absolute;left:-100px;top:29%;opacity:.5;animation:fa-glide 38s linear infinite;">
+      <svg width="60" height="60" viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M7 26 Q24 7.5 41 26" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M12 27 L24 37 L36 27" stroke="var(--accent)" stroke-width="1.1" fill="none" opacity=".55"/>
+        <circle cx="24" cy="38" r="2.4" fill="var(--accent)"/>
+      </svg>
+    </div>
+
+    <!-- nav -->
+    <nav style="position:relative;z-index:3;max-width:1240px;width:100%;margin:0 auto;padding:26px 32px;box-sizing:border-box;display:flex;align-items:center;gap:12px;">
+      <svg width="30" height="30" viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M29 10 Q36 3.5 43 10" stroke="#e2a63e" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <path d="M31 11 L36 16 L41 11" stroke="#e2a63e" stroke-width="1" fill="none" opacity=".6"/>
+        <circle cx="36" cy="16.8" r="1.8" fill="#e2a63e"/>
+      </svg>
+      <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;letter-spacing:-.02em;">FlyAlarm</span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:30px;">
+        <a href="#features" style="font-size:14px;color:#9fb0c1;" style-hover="color:#e8edf3;">Features</a>
+        <a href="#how" style="font-size:14px;color:#9fb0c1;" style-hover="color:#e8edf3;">How it works</a>
+        <a href="#get" style="font-size:14px;font-weight:600;color:#0e1620;background:var(--accent);border-radius:9px;padding:10px 20px;" style-hover="background:#9ed3ea;color:#0e1620;">Get started</a>
+      </div>
+    </nav>
+
+    <!-- centered hero content -->
+    <div style="position:relative;z-index:3;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 32px 96px;gap:28px;">
+      <svg width="132" height="132" viewBox="0 0 48 48" aria-hidden="true" style="animation:fa-fadeup .9s ease-out both;">
+        <path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M30 8 Q36 2.5 42 8" stroke="#e2a63e" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".8"/>
+        <circle cx="36" cy="12.5" r="2.6" fill="#e2a63e"/>
+      </svg>
+      <h1 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:clamp(48px,7vw,88px);line-height:1.0;letter-spacing:-.035em;text-wrap:balance;max-width:900px;animation:fa-fadeup .9s ease-out .12s both;">Know when it's <span style="color:var(--accent);">flyable</span>.</h1>
+      <p style="margin:0;font-size:19px;line-height:1.65;color:#9fb0c1;max-width:600px;text-wrap:pretty;animation:fa-fadeup .9s ease-out .24s both;">FlyAlarm monitors conditions at every paragliding and hang gliding site around you, and notifies you when a genuine flying window opens.</p>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center;animation:fa-fadeup .9s ease-out .36s both;">
+        <a href="#get" style="font-weight:600;font-size:16px;color:#0e1620;background:var(--accent);border-radius:12px;padding:16px 34px;" style-hover="background:#9ed3ea;color:#0e1620;">Start monitoring</a>
+        <a href="#how" style="font-weight:500;font-size:16px;color:#e8edf3;border:1px solid #33445a;border-radius:12px;padding:15px 30px;" style-hover="border-color:var(--accent);color:#e8edf3;">How it works</a>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:.06em;color:#68798c;animation:fa-fadeup .9s ease-out .48s both;">
+        <span style="width:7px;height:7px;border-radius:50%;background:#4cb877;animation:fa-blink 2.4s ease-in-out infinite;"></span>
+        Monitoring live — 3-day outlook, updated hourly
+      </div>
+    </div>
+
+    <!-- notification card, cycling, anchored above the ridge -->
+    <div style="position:absolute;z-index:3;right:6%;bottom:24%;width:330px;height:88px;">
+      <div style="position:absolute;inset:0;display:flex;gap:12px;align-items:center;background:rgba(18,27,39,.92);backdrop-filter:blur(6px);border:1px solid #33445a;border-radius:16px;padding:13px 15px;box-shadow:0 20px 44px -18px rgba(0,0,0,.85);opacity:0;animation:fa-notif 14s ease-in-out infinite;">
+        <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="4" width="40" height="40" rx="10" fill="#1b2a3a"></rect><path d="M12.5 28 Q24 13.5 35.5 28" stroke="#74bddf" stroke-width="2.8" fill="none" stroke-linecap="round"></path><circle cx="24" cy="35.5" r="2.2" fill="#74bddf"></circle><circle cx="39" cy="9" r="5.4" fill="#e2a63e"></circle></svg>
+        <div style="flex:1;min-width:0;text-align:left;">
+          <div style="display:flex;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#68798c;text-transform:uppercase;letter-spacing:.08em;"><span>FlyAlarm</span><span style="margin-left:auto;">now</span></div>
+          <div style="font-weight:600;font-size:14px;padding-top:2px;">Sopot — flyable tomorrow</div>
+          <div style="font-size:12.5px;color:#9fb0c1;">Score 8/10 · window 11:00–17:00</div>
+        </div>
+      </div>
+      <div style="position:absolute;inset:0;display:flex;gap:12px;align-items:center;background:rgba(18,27,39,.92);backdrop-filter:blur(6px);border:1px solid #33445a;border-radius:16px;padding:13px 15px;box-shadow:0 20px 44px -18px rgba(0,0,0,.85);opacity:0;animation:fa-notif 14s ease-in-out infinite;animation-delay:7s;">
+        <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="4" width="40" height="40" rx="10" fill="#1b2a3a"></rect><path d="M12.5 28 Q24 13.5 35.5 28" stroke="#74bddf" stroke-width="2.8" fill="none" stroke-linecap="round"></path><circle cx="24" cy="35.5" r="2.2" fill="#74bddf"></circle><circle cx="39" cy="9" r="5.4" fill="#e2a63e"></circle></svg>
+        <div style="flex:1;min-width:0;text-align:left;">
+          <div style="display:flex;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#68798c;text-transform:uppercase;letter-spacing:.08em;"><span>FlyAlarm</span><span style="margin-left:auto;">07:10</span></div>
+          <div style="font-weight:600;font-size:14px;padding-top:2px;">3 sites flyable today</div>
+          <div style="font-size:12.5px;color:#9fb0c1;">Best conditions: Konyavo, 7/10</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ridge line at bottom of hero -->
+    <svg style="position:absolute;z-index:2;left:0;right:0;bottom:0;width:100%;height:19vh;min-height:120px;display:block;" viewBox="0 0 1200 64" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 64 L0 44 L90 22 L170 40 L260 12 L340 34 L430 20 L520 42 L610 8 L700 30 L790 18 L880 38 L960 14 L1050 36 L1130 24 L1200 40 L1200 64 Z" fill="#141f2c"/>
+      <path d="M0 64 L0 54 L120 38 L230 50 L330 30 L450 48 L560 26 L670 46 L780 34 L890 52 L990 32 L1100 48 L1200 38 L1200 64 Z" fill="#0b1017"/>
+    </svg>
+    <!-- beacon on the main peak -->
+    <div style="position:absolute;z-index:2;left:50.83%;bottom:calc(19vh - 19px);width:0;height:0;">
+      <div style="position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;border:2px solid #e2a63e;animation:fa-ping 3s ease-out infinite;"></div>
+      <div style="position:absolute;left:-34px;top:-34px;width:68px;height:68px;border-radius:50%;border:2px solid #e2a63e;animation:fa-ping 3s ease-out infinite;animation-delay:1.5s;"></div>
+      <div style="position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:#e2a63e;box-shadow:0 0 16px 4px rgba(226,166,62,.5);"></div>
+    </div>
+  </section>
+
+  <!-- ================= FEATURES ================= -->
+  <section id="features" style="max-width:1240px;margin:0 auto;padding:110px 32px 0;box-sizing:border-box;">
+    <div style="display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:48px;align-items:start;">
+      <div style="display:flex;flex-direction:column;gap:14px;position:sticky;top:48px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#68798c;">Features</div>
+        <h2 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:42px;line-height:1.08;letter-spacing:-.025em;text-wrap:balance;">Built for the decision, not the forecast.</h2>
+        <p style="margin:0;font-size:16px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">Weather apps show you data. FlyAlarm evaluates it against each site's launch conditions and your personal limits — and gives you an answer.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="display:grid;grid-template-columns:56px 1fr;gap:22px;align-items:start;background:linear-gradient(180deg,#151f2c,#111927);border:1px solid #24303f;border-radius:18px;padding:30px 32px;">
+          <svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true" style="margin-top:2px;">
+            <circle cx="24" cy="24" r="19" stroke="#3a4c60" stroke-width="2" fill="none"/>
+            <path d="M24 24 L24 5 A19 19 0 0 1 40.5 14.5 Z" fill="var(--accent)" opacity=".28"/>
+            <line x1="24" y1="24" x2="33" y2="11" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="24" cy="24" r="2.6" fill="var(--accent)"/>
+          </svg>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;">Site-aware wind analysis</h3>
+            <p style="margin:0;font-size:15px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">Every site is evaluated against its own takeoff sector. Wind aligned with launch scores well; crosswind or out-of-sector conditions are flagged, regardless of how calm the forecast looks.</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:56px 1fr;gap:22px;align-items:start;background:linear-gradient(180deg,#151f2c,#111927);border:1px solid #24303f;border-radius:18px;padding:30px 32px;">
+          <svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true" style="margin-top:2px;">
+            <rect x="6" y="28" width="9" height="14" rx="2" fill="var(--accent)" opacity=".35"/>
+            <rect x="19.5" y="18" width="9" height="24" rx="2" fill="var(--accent)" opacity=".65"/>
+            <rect x="33" y="8" width="9" height="34" rx="2" fill="var(--accent)"/>
+          </svg>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;">Personal risk profiles</h3>
+            <p style="margin:0;font-size:15px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">Conservative, Standard or Performance — each profile applies its own thresholds for wind speed, gusts, gust differential, thermal strength and instability. The same day reads differently for different pilots.</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:56px 1fr;gap:22px;align-items:start;background:linear-gradient(180deg,#151f2c,#111927);border:1px solid #24303f;border-radius:18px;padding:30px 32px;">
+          <svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true" style="margin-top:2px;">
+            <rect x="5" y="20" width="5" height="10" rx="1.5" fill="#2c5a43"/>
+            <rect x="12" y="17" width="5" height="13" rx="1.5" fill="#4cb877"/>
+            <rect x="19" y="14" width="5" height="16" rx="1.5" fill="#4cb877"/>
+            <rect x="26" y="16" width="5" height="14" rx="1.5" fill="#4cb877"/>
+            <rect x="33" y="21" width="5" height="9" rx="1.5" fill="#dca43a"/>
+            <rect x="40" y="24" width="5" height="6" rx="1.5" fill="none" stroke="#c65f42" stroke-width="1.4"/>
+            <line x1="12" y1="38" x2="31" y2="38" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;">Defined flying windows</h3>
+            <p style="margin:0;font-size:15px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">Hour-by-hour scoring identifies when conditions open and close, so a notification means a concrete window — for example 11:00 to 17:00 — not a general impression of the day.</p>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:56px 1fr;gap:22px;align-items:start;background:linear-gradient(180deg,#151f2c,#111927);border:1px solid #24303f;border-radius:18px;padding:30px 32px;">
+          <svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true" style="margin-top:2px;">
+            <path d="M24 6 C17 6 14 11 14 17 L14 26 Q14 31 10 34 L38 34 Q34 31 34 26 L34 17 C34 11 31 6 24 6 Z" stroke="var(--accent)" stroke-width="2.4" fill="none" stroke-linejoin="round"/>
+            <path d="M20 38 Q24 42 28 38" stroke="var(--accent)" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+            <circle cx="34" cy="10" r="5" fill="#e2a63e"/>
+          </svg>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:21px;">Notifications with restraint</h3>
+            <p style="margin:0;font-size:15px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">FlyAlarm stays silent below your quality threshold. When it does notify you, it includes the site, the score and the window — everything needed to decide whether to go.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= HOW IT WORKS ================= -->
+  <section id="how" style="max-width:1240px;margin:0 auto;padding:120px 32px 0;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;gap:14px;max-width:560px;padding-bottom:44px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#68798c;">How it works</div>
+      <h2 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:42px;line-height:1.08;letter-spacing:-.025em;text-wrap:balance;">Three steps, then it runs on its own.</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+      <div style="border-top:2px solid var(--accent);padding:24px 6px 0;display:flex;flex-direction:column;gap:10px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent);">01</span>
+        <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:20px;">Choose your location</h3>
+        <p style="margin:0;font-size:14.5px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">Set a home point and a search radius from 25 to 200 km. FlyAlarm identifies every registered flying site within range.</p>
+      </div>
+      <div style="border-top:2px solid #2c3a4c;padding:24px 6px 0;display:flex;flex-direction:column;gap:10px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent);">02</span>
+        <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:20px;">Set your profile</h3>
+        <p style="margin:0;font-size:14.5px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">Select the risk profile that matches your experience and wing. All scoring thresholds adjust accordingly.</p>
+      </div>
+      <div style="border-top:2px solid #2c3a4c;padding:24px 6px 0;display:flex;flex-direction:column;gap:10px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent);">03</span>
+        <h3 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:20px;">Receive your alerts</h3>
+        <p style="margin:0;font-size:14.5px;line-height:1.7;color:#9fb0c1;text-wrap:pretty;">Conditions are re-evaluated hourly across a 3-day outlook. When a site clears your threshold, you're notified with the details.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= GET ================= -->
+  <section id="get" style="max-width:1240px;margin:0 auto;padding:130px 32px 100px;box-sizing:border-box;">
+    <div style="position:relative;overflow:hidden;border:1px solid #2c3a4c;border-radius:24px;background:linear-gradient(150deg,#1b2a3d,#111a26);padding:80px 32px;display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center;">
+      <svg width="96" height="96" viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="4" y="4" width="40" height="40" rx="10" fill="#1b2a3a" stroke="#33445a" stroke-width="1"/>
+        <path d="M12.5 28 Q24 13.5 35.5 28" stroke="#74bddf" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+        <path d="M16.5 29 L24 36.5 L31.5 29" stroke="#74bddf" stroke-width="1.1" fill="none" opacity=".6"/>
+        <circle cx="24" cy="37.5" r="2.2" fill="#74bddf"/>
+        <circle cx="39" cy="9" r="5.4" fill="#e2a63e" stroke="#111a26" stroke-width="2"/>
+      </svg>
+      <h2 style="margin:0;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:44px;letter-spacing:-.025em;max-width:600px;line-height:1.1;text-wrap:balance;">Never miss a flyable day again.</h2>
+      <p style="margin:0;color:#9fb0c1;font-size:16.5px;">Free during the test period. Currently covering Bulgaria, with more regions to follow.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;padding-top:6px;">
+        <a href="#" style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:#e8edf3;color:#0e1620;border-radius:12px;padding:11px 24px;" style-hover="background:#ffffff;color:#0e1620;">
+          <span style="font-size:10.5px;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#68798c;">Download for</span>
+          <span style="font-weight:600;font-size:16px;">iOS</span>
+        </a>
+        <a href="#" style="display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:#e8edf3;color:#0e1620;border-radius:12px;padding:11px 24px;" style-hover="background:#ffffff;color:#0e1620;">
+          <span style="font-size:10.5px;font-family:'IBM Plex Mono',monospace;letter-spacing:.06em;text-transform:uppercase;color:#68798c;">Download for</span>
+          <span style="font-weight:600;font-size:16px;">Android</span>
+        </a>
+        <a href="app/" style="display:flex;align-items:center;font-weight:500;font-size:15px;color:#e8edf3;border:1px solid #33445a;border-radius:12px;padding:11px 24px;" style-hover="border-color:var(--accent);color:#e8edf3;">Open the web app</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer style="border-top:1px solid #1c2634;">
+    <div style="max-width:1240px;margin:0 auto;padding:30px 32px 46px;box-sizing:border-box;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M29 10 Q36 3.5 43 10" stroke="#e2a63e" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+          <path d="M31 11 L36 16 L41 11" stroke="#e2a63e" stroke-width="1" fill="none" opacity=".6"/>
+          <circle cx="36" cy="16.8" r="1.8" fill="#e2a63e"/>
+        </svg>
+        <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;">FlyAlarm</span>
+      </div>
+      <p style="margin:0;font-size:12.5px;line-height:1.65;color:#68798c;max-width:640px;margin-left:auto;text-wrap:pretty;"><strong style="color:#9fb0c1;">FlyAlarm is a decision-support tool, not a safety authority.</strong> Forecast models can underestimate conditions at launch. Always verify the weather on site and consult local pilots before flying.</p>
+    </div>
+  </footer>
+</div>
+<script>
+document.querySelectorAll('[style-hover]').forEach(function(el){
+  var hover = el.getAttribute('style-hover');
+  var base = el.getAttribute('style') || '';
+  el.addEventListener('mouseenter', function(){ el.setAttribute('style', base + ';' + hover); });
+  el.addEventListener('mouseleave', function(){ el.setAttribute('style', base); });
+});
+document.querySelectorAll('a[href="#"]').forEach(function(a){
+  a.setAttribute('title', 'Coming soon');
+  a.setAttribute('aria-disabled', 'true');
+  a.addEventListener('click', function(e){ e.preventDefault(); });
+});
+</script>
+</body>
+</html>
