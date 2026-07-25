@@ -230,3 +230,15 @@ body { font-size: 1rem; }
   .titles h2 { white-space: normal; }
   #alert { font-size: 14px; padding: 13px 14px; }
 }
+
+
+/* v1.2.1 — phone card-header fix: chips wrap instead of sliding
+   under the gauge; meta no longer collides with the verdict */
+@media (max-width:560px){
+  .card-head{flex-wrap:wrap;row-gap:8px}
+  .rankline{flex-wrap:wrap;row-gap:4px;padding-right:6px}
+  .titles{min-width:0;flex:1 1 55%}
+  .titles h2{overflow-wrap:anywhere}
+  .meta{white-space:normal;line-height:1.5;padding-right:4px}
+  .score{flex:none;margin-left:auto}
+}
