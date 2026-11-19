@@ -2,13 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FlyAlarm — know when it's flyable</title>
+<meta name="description" content="Which paragliding and hang gliding sites around you are flyable, when, and why.">
+<meta name="theme-color" content="#0b1017">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FlyAlarm">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./styles.css">
-<!-- FlyAlarm app v1.4 -->
+<!-- FlyAlarm app v1.6 -->
 </head>
 <body>
 <div class="hero">
@@ -17,7 +26,7 @@
     <header>
       <div class="mark">
         <a href="../" class="mark-link" title="FlyAlarm home">
-        <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 48 48" aria-hidden="true">
           <path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M30 8 Q36 2.5 42 8" stroke="var(--amber)" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".8"/>
           <circle cx="36" cy="12.5" r="2.6" fill="var(--amber)"/>
@@ -25,38 +34,63 @@
         <span class="wordmark">FlyAlarm</span>
         </a>
       </div>
-      <div class="head-right">
-      </div>
-      <div id="today-line"></div>
     </header>
-    <div class="head-meta"><span id="source"></span><span id="status"></span></div>
 
-    <div class="settings">
-      <label class="f-country">Country
-        <select id="country"><option value="">Choose…</option></select>
-      </label>
-      <label class="f-city">City
-        <input id="city" type="text" autocomplete="off" spellcheck="false" placeholder="Start typing your town…"
-          role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="city-list">
-      </label>
-      <label class="f-radius">Radius
-        <select id="radius">
-          <option value="25">25 km</option>
-          <option value="50">50 km</option>
-          <option value="100" selected>100 km</option>
-          <option value="200">200 km</option>
-          <option value="country">Country wide</option>
-        </select>
-      </label>
-      <button class="btn btn-primary" id="search">Find flyable sites</button>
-      <button class="site-act" id="geo" type="button">or use my GPS position</button>
+    <h1 id="today-line">Which sites are flyable?</h1>
+    <p id="today-sub"></p>
+
+    <div class="settings" id="settings">
+      <div class="place-summary" id="place-summary" hidden>
+        <span class="place-ico" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.6" fill="currentColor"/></svg>
+        </span>
+        <span id="place-line"></span>
+        <button class="site-act" id="place-edit" type="button">Change</button>
+      </div>
+      <div class="place-form" id="place-form">
+        <label class="f-country"><span class="f-label">Country</span>
+          <select id="country"><option value="">Choose…</option></select>
+        </label>
+        <label class="f-city"><span class="f-label">Town</span>
+          <input id="city" type="text" autocomplete="off" spellcheck="false" placeholder="Start typing your town…"
+            role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="city-list">
+        </label>
+        <label class="f-radius"><span class="f-label">Radius</span>
+          <select id="radius">
+            <option value="25">25 km</option>
+            <option value="50">50 km</option>
+            <option value="100" selected>100 km</option>
+            <option value="200">200 km</option>
+            <option value="country">Whole country</option>
+          </select>
+        </label>
+        <div class="form-acts">
+          <button class="btn btn-primary" id="search">Find flyable sites</button>
+          <button class="site-act" id="geo" type="button">or use my GPS position</button>
+        </div>
+      </div>
     </div>
+    <p id="status" role="status" aria-live="polite"></p>
   </div>
   <div class="ridge" aria-hidden="true"></div>
-  <div class="beacon" aria-hidden="true"><i></i><i></i><b></b></div>
 </div>
 
 <div class="wrap">
+  <div class="controls">
+    <nav id="day-tabs" aria-label="Forecast day"></nav>
+    <div class="tier-row">
+      <div class="seg" role="group" aria-label="Pilot profile">
+        <button data-tier="conservative">Conservative</button>
+        <button data-tier="standard">Standard</button>
+        <button data-tier="performance">Performance</button>
+      </div>
+      <span id="tier-blurb"></span>
+    </div>
+  </div>
+
+  <div id="banner" hidden></div>
+  <div id="alert" hidden></div>
+
   <div class="viewbar">
     <div class="seg" role="group" aria-label="Which sites">
       <button data-view="watch">My sites <span id="watch-count" class="count"></span></button>
@@ -64,45 +98,29 @@
     </div>
     <button class="btn btn-small" id="manage">Choose my sites</button>
   </div>
-  <div id="alert" hidden></div>
-  <div id="banner" hidden></div>
-
-  <div class="controls">
-    <div class="seg" role="group" aria-label="Pilot profile">
-      <button data-tier="conservative">Conservative</button>
-      <button data-tier="standard">Standard</button>
-      <button data-tier="performance">Performance</button>
-    </div>
-    <span id="tier-blurb"></span>
-    <nav id="day-tabs" aria-label="Forecast day"></nav>
-  </div>
-
-  <div class="legend">
-    <span><i class="l-good"></i>good hour</span>
-    <span><i class="l-ok"></i>flyable</span>
-    <span><i class="l-soft"></i>strong for profile</span>
-    <span><i class="l-gated"></i>no-go</span>
-  </div>
 
   <main id="cards"></main>
 
   <footer>
-    <strong>Decision support only — not a safety authority.</strong>
-    Scores come from raw model data (Open-Meteo best-match) with simplified site rules;
-    10 m model wind underestimates launch wind on ridges. Always check the sky, the windsock
-    and local pilots before flying. Sites come from ParaglidingEarth, mirrored weekly into
-    FlyAlarm's own database. On each card the compass shows the takeoff sector (solid shading =
-    good direction, faint = possible) and the forecast wind arrow. “My sites” is stored on this
-    device; use “copy link to my list” in the picker to carry it to your phone.
+    <p><strong>Decision support only, not a safety authority.</strong>
+    Scores come from forecast models with simplified site rules, and models can underestimate wind at launch.
+    Always check the sky, the windsock and local pilots before flying.</p>
+    <p>How to read a card: the blue fan is the direction the launch faces, the arrow is the forecast wind
+    (green straight in, amber off axis, red outside the launch). Tap a card for details and tap an hour for its reason.
+    “My sites” is stored on this device; use “copy link to my list” in the site picker to carry it to your phone.</p>
+    <p class="credits">Forecast data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0).
+    Flying sites: <a href="https://www.paraglidingearth.com/" target="_blank" rel="noopener">ParaglidingEarth</a> community database, mirrored weekly.
+    Town search: Open-Meteo geocoding.</p>
+    <p class="data-line" id="source"></p>
   </footer>
 
   <div id="picker" class="picker" hidden role="dialog" aria-modal="true" aria-labelledby="picker-title">
     <div class="picker-box">
       <div class="picker-head">
         <h3 id="picker-title">Choose my sites</h3>
-        <button class="site-act" id="picker-close">close</button>
+        <button class="site-act" id="picker-close">Close</button>
       </div>
-      <p class="picker-sub">Tick the launches you fly. Only these are monitored in “My sites”. The list below follows your location and radius above.</p>
+      <p class="picker-sub">Tick the launches you fly. Only these are monitored in “My sites”. The list follows your location and radius.</p>
       <input id="picker-filter" type="search" placeholder="Filter by name…" autocomplete="off">
       <div id="picker-list" class="picker-list"></div>
       <div class="picker-foot">
@@ -113,8 +131,6 @@
     </div>
   </div>
 </div>
-
-
 
 <ul id="city-list" class="city-list" role="listbox" aria-label="Matching towns" hidden></ul>
 

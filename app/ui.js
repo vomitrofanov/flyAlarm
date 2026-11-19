@@ -8,7 +8,7 @@
    ============================================================ */
 const C = window.FlyAlarmCore;
 const $ = sel => document.querySelector(sel);
-console.info('FlyAlarm app v1.5');
+console.info('FlyAlarm app v1.6');
 
 /* Optional: your own Cloudflare Worker proxy (flyalarm-proxy.js).
    const PE_PROXY = 'https://YOUR-WORKER.workers.dev/?url='; */
@@ -29,7 +29,7 @@ const state = {
   radius: 100,
   sites: [], totalFound: 0, onlineSites: 0, siteVia: null,
   data: {}, fetchedAt: null, busy: false, rerun: false, mode: null, seq: 0,
-  view: null,               /* 'watch' = my sites only, 'explore' = everything in radius */
+  view: null, editingPlace: false, showNoGo: false,               /* 'watch' = my sites only, 'explore' = everything in radius */
 };
 
 /* ---------------- fetch helpers ---------------- */
@@ -191,10 +191,26 @@ function clearTown() {
   state.lat = null; state.lon = null; state.cityName = null;
   saveSettings(); reflectPlace();
 }
+function placeReady() {
+  return state.radius === 'country' ? !!state.cc : state.lat != null;
+}
+function placeLine() {
+  const country = state.countryName || (state.cc ? regionName(state.cc) : '');
+  if (state.radius === 'country') return `All of ${country}`;
+  return `${state.cityName}${country ? ', ' + country : ''} \u00b7 ${state.radius} km`;
+}
+function reflectSettingsBox() {
+  const sum = $('#place-summary'), form = $('#place-form');
+  if (!sum || !form) return;
+  const collapsed = placeReady() && !state.editingPlace;
+  sum.hidden = !collapsed; form.hidden = collapsed;
+  const pl = $('#place-line'); if (pl && collapsed) pl.textContent = placeLine();
+}
 function reflectPlace() {
   const ci = $('#city'), co = $('#country');
   if (ci && document.activeElement !== ci) ci.value = state.cityName || '';
   if (co) { if (state.cc) ensureCountryOption(state.cc); co.value = state.cc || ''; }
+  reflectSettingsBox();
 }
 
 /* ---------- town search (Open-Meteo geocoding) ---------- */
@@ -377,7 +393,7 @@ function batchUrl(sites, vars) {
     + `?latitude=${sites.map(s => s.lat.toFixed(3)).join(',')}`
     + `&longitude=${sites.map(s => s.lon.toFixed(3)).join(',')}`
     + '&timezone=auto&forecast_days=3&wind_speed_unit=kmh'
-    + `&hourly=${vars}`;
+    + `&hourly=${vars}&daily=sunrise,sunset`;
 }
 const chunks = (arr, n) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
 async function fetchChunk(sitesChunk, varSets) {
@@ -449,6 +465,7 @@ async function runSearch() {
   }
   if (state.busy) { state.rerun = true; return; }
   state.busy = true;
+  state.editingPlace = false; reflectSettingsBox();
   const seq = ++state.seq;
   setStatus('Finding sites\u2026');
   hideBanner();
@@ -662,7 +679,7 @@ function cardSummary(day, site, wind, wv) {
     if (day.hours.some(x => x.state === 'soft')) return { cls: '', text: 'Thermals too strong for this profile' };
     return { cls: '', text: 'No usable window for this profile' };
   }
-  const windTxt = `${C.dirToCompass(wind.dir)} ${wind.min}–${wind.max} km/h${wv.word ? ', ' + wv.word : ''}`;
+  const windTxt = `${C.dirToCompass(wind.dir)} ${wind.min === wind.max ? wind.max : wind.min + '–' + wind.max} km/h${wv.word ? ', ' + wv.word : ''}`;
   const win = `${w.len <= 3 ? 'Short window' : 'Flyable'} ${fmtH(w.from)}–${fmtH(w.to + 1)}`;
   if (stormHrs.length) return { cls: 's-storm', text: `Storm risk from ${fmtH(stormHrs[0])} — fly ${fmtH(w.from)}–${fmtH(w.to + 1)} only` };
   if (day.score <= 5) {
@@ -672,6 +689,18 @@ function cardSummary(day, site, wind, wv) {
     return { cls: '', text: `${win}${lim ? ' · then ' + lim : ' · ' + windTxt}${site.sectorUnknown ? ' · launch directions unknown' : ''}` };
   }
   return { cls: '', text: `${win} · ${windTxt}${site.sectorUnknown ? ' · launch directions unknown' : ''}` };
+}
+
+/* hour labels under the strip: first hour, every few hours, end of the window */
+function ticksFor(hours) {
+  if (!hours.length) return '';
+  const a = hours[0].hour, b = hours[hours.length - 1].hour + 1, span = b - a;
+  const step = span <= 9 ? 2 : span <= 13 ? 4 : 5;
+  const marks = [];
+  for (let h = a; h < b; h += step) marks.push(h);
+  if (b - marks[marks.length - 1] < step / 2) marks.pop();
+  marks.push(b);
+  return marks.map(h => `<span style="left:${((h - a) / span * 100).toFixed(2)}%">${h}</span>`).join('');
 }
 
 /* ---------------- the card ---------------- */
@@ -684,15 +713,16 @@ function siteCard(day, rank) {
   wind.cls = wv.cls;
   const sum = cardSummary(day, site, wind, wv);
   const open = openCards.has(site.id) || (!openCardsTouched && rank === 1 && day.score >= C.FLYABLE_SCORE);
-  const cells = day.hours.map(h => `<div class="cell c-${h.state}" title="${hourTooltip(h)}"></div>`).join('');
+  const cells = day.hours.map(h => `<div class="cell c-${h.state}" title="${hourTooltip(h)}" data-why="${hourTooltip(h)}" role="button" tabindex="-1"></div>`).join('');
   const sub = [
-    site.dist != null ? `${Math.round(site.dist)} km` : null,
-    site.sectorUnknown ? null : `launch ${launchFacing(site)}`,
-    site.alt ? `${site.alt} m` : null,
+    site.dist != null ? `${Math.round(site.dist)} km` : null,
+    site.sectorUnknown ? null : `launch ${launchFacing(site)}`,
+    site.alt ? `${site.alt} m` : null,
   ].filter(Boolean).join(' · ');
-  const windCap = wind.dir != null && wind.max >= 5 ? `${C.dirToCompass(wind.dir)} ${wind.min}–${wind.max}` : 'calm';
+  const range = wind.min === wind.max ? `${wind.max}` : `${wind.min}–${wind.max}`;
+  const windCap = wind.dir != null && wind.max >= 5 ? `${C.dirToCompass(wind.dir)} ${range}` : 'calm';
   const indTitle = `Launch faces ${launchFacing(site)}. ` + (wind.max >= 5
-    ? `Forecast wind from ${C.dirToCompass(wind.dir)}, ${wind.min}–${wind.max} km/h${wv.word ? ', ' + wv.word : ''}.`
+    ? `Forecast wind from ${C.dirToCompass(wind.dir)}, ${wind.min === wind.max ? wind.max : wind.min + '–' + wind.max} km/h${wv.word ? ', ' + wv.word : ''}.`
     : 'Forecast wind calm.');
 
   const storm = day.warnings.includes('storm') ? 'high — storms forecast'
@@ -705,6 +735,7 @@ function siteCard(day, rank) {
     s.topMax != null ? ['Thermal tops', `~${s.topMax} m${site.alt ? ` (+${Math.max(0, Math.round((s.topMax - site.alt) / 50) * 50)} m)` : ''}`] : null,
     ['Thermals', C.thermalLabel(s.thermalPeak)],
     ['Storm risk', storm],
+    day.span && day.span.sunrise ? ['Daylight', `${day.span.sunrise}\u2013${day.span.sunset}`] : null,
     s.capMin != null && site.alt && s.capMin < site.alt + 900 ? ['Inversion', `caps climbs near ${Math.round(s.capMin / 50) * 50} m`] : null,
   ].filter(Boolean);
   const limits = day.reasons.filter(r => !/^(Usable window|In-sector|Thermal potential|Cloudbase|Blue day|Inversion caps)/.test(r) && !/^[A-Z]{1,3} wind \d/.test(r));
@@ -725,9 +756,11 @@ function siteCard(day, rank) {
     </div>
     <p class="summary ${sum.cls}">${sum.text}</p>
     <div class="strip">${cells}</div>
-    <div class="ticks"><span>8</span><span>12</span><span>16</span><span>20</span></div>
+    <div class="ticks">${ticksFor(day.hours)}</div>
+    <p class="hour-info" hidden></p>
     <div class="details">
       <dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+      <p class="legend"><span><i class="l-good"></i>good hour</span><span><i class="l-ok"></i>flyable</span><span><i class="l-soft"></i>too strong for this profile</span><span><i class="l-gated"></i>no-go</span></p>
       ${limits.length ? `<ul class="reasons">${limits.map(r => `<li class="${/^[⚡⚠]/.test(r) ? 'r-storm' : ''}">${r}</li>`).join('')}</ul>` : ''}
       <div class="card-foot">${tags}<span class="acts">${acts}</span></div>
     </div>
@@ -761,8 +794,23 @@ function renderAlert(picked, dates) {
   }
 }
 
+function renderTitle(dates) {
+  const t = $('#today-line'), sub = $('#today-sub');
+  if (!t) return;
+  const iso = dates[state.dayIdx];
+  const day = iso ? dayTag(iso, state.dayIdx) : null;
+  let where = '';
+  if (state.view === 'watch') where = 'at my sites';
+  else if (state.radius === 'country' && state.cc) where = `across ${state.countryName || regionName(state.cc)}`;
+  else if (state.cityName) where = `around ${state.cityName}`;
+  t.textContent = day && where ? `${day} ${where}` : 'Which sites are flyable?';
+  if (sub) sub.textContent = iso
+    ? new Date(iso + 'T12:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+    : 'Choose where you fly, then press \u201cFind flyable sites\u201d.';
+}
 function render() {
   const tier = C.TIERS[state.tier];
+  reflectSettingsBox();
   document.querySelectorAll('[data-tier]').forEach(b =>
     b.classList.toggle('active', b.dataset.tier === state.tier));
   const tb = $('#tier-blurb'); if (tb) tb.textContent = tier.blurb;
@@ -788,13 +836,21 @@ function render() {
     .map(days => days[Math.min(state.dayIdx, days.length - 1)])
     .sort((a, b) => b.score - a.score || b.window.len - a.window.len);
   renderAlert(picked, dates);
+  renderTitle(dates);
 
   const hiddenNote = state.view === 'explore' && hiddenSites.size
     ? `<p class="empty">${hiddenSites.size} site${hiddenSites.size > 1 ? 's' : ''} hidden \u00b7 <button class="site-act" id="unhide">show all</button></p>` : '';
   const capNote = state.view === 'explore' && state.totalFound > state.sites.length
     ? `<p class="empty">Showing the nearest ${state.sites.length} of ${state.totalFound} sites.</p>` : '';
+  const grouped = state.view === 'explore';
+  const flyList = grouped ? picked.filter(d => d.score > 0) : picked;
+  const noGo = grouped ? picked.filter(d => d.score === 0) : [];
+  const dayLabel = dates[state.dayIdx] ? dayTag(dates[state.dayIdx], state.dayIdx).toLowerCase() : '';
+  const noGoBlock = noGo.length
+    ? `<button class="nogo-toggle" id="nogo-toggle" aria-expanded="${state.showNoGo}">${noGo.length} site${noGo.length > 1 ? 's' : ''} not flyable ${dayLabel} \u00b7 ${state.showNoGo ? 'hide' : 'show'}</button>
+       <div class="nogo-list"${state.showNoGo ? '' : ' hidden'}>${noGo.map((d, i) => siteCard(d, flyList.length + i + 1)).join('')}</div>` : '';
   $('#cards').innerHTML = hiddenNote + capNote +
-    (picked.map((d, i) => siteCard(d, i + 1)).join('') +
+    (flyList.map((d, i) => siteCard(d, i + 1)).join('') + noGoBlock +
      failed.map(s => `<article class="card v-err"><div class="card-head">
        <div class="titles"><h2>${s.name}</h2><p class="meta">forecast unavailable</p></div></div></article>`).join('')) ||
     (state.view === 'watch' && !watch.length
@@ -807,7 +863,7 @@ function render() {
     b.addEventListener('click', () => hideSite(b.dataset.hide)));
   const un = $('#unhide'); if (un) un.addEventListener('click', unhideAll);
   document.querySelectorAll('[data-card]').forEach(card => card.addEventListener('click', e => {
-    if (e.target.closest('a, button:not([data-more])')) return;
+    if (e.target.closest('a, button:not([data-more]), .cell')) return;
     if (!openCardsTouched) {
       document.querySelectorAll('.card.open[data-card]').forEach(c => openCards.add(c.dataset.card));
       openCardsTouched = true;
@@ -824,6 +880,19 @@ function render() {
     if (state.view === 'watch') { state.sites = state.sites.filter(s => s.id !== site.id); saveSnapshot(); }
     render();
   }));
+  document.querySelectorAll('.card .cell').forEach(cell => cell.addEventListener('click', e => {
+    e.stopPropagation();
+    const card = cell.closest('.card'), info = card && card.querySelector('.hour-info');
+    if (!info) return;
+    const already = cell.classList.contains('sel');
+    card.querySelectorAll('.cell.sel').forEach(c => c.classList.remove('sel'));
+    if (already) { info.textContent = ''; info.hidden = true; return; }
+    cell.classList.add('sel');
+    info.textContent = cell.dataset.why || cell.title;
+    info.hidden = false;
+  }));
+  const ng = $('#nogo-toggle');
+  if (ng) ng.addEventListener('click', () => { state.showNoGo = !state.showNoGo; render(); });
   const ep = $('#empty-pick'); if (ep) ep.addEventListener('click', openPicker);
   document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => setView(b.dataset.goto)));
 
@@ -832,9 +901,9 @@ function render() {
   const scopeStamp = state.radius === 'country'
     ? `${state.cc} country-wide` : `${state.cityName} (${(state.lat ?? 0).toFixed(2)},${(state.lon ?? 0).toFixed(2)}) r=${state.radius} km`;
   $('#source').textContent = state.mode === 'live' && state.view === 'watch'
-    ? `Open-Meteo \u00b7 watching ${state.sites.length} site${state.sites.length > 1 ? 's' : ''} \u00b7 ${String(state.fetchedAt.getHours()).padStart(2,'0')}:${String(state.fetchedAt.getMinutes()).padStart(2,'0')}`
+    ? `Data: Open-Meteo \u00b7 watching ${state.sites.length} site${state.sites.length > 1 ? 's' : ''} \u00b7 updated ${String(state.fetchedAt.getHours()).padStart(2,'0')}:${String(state.fetchedAt.getMinutes()).padStart(2,'0')}`
     : state.mode === 'live'
-    ? `Open-Meteo \u00b7 ${dbNote} \u00b7 ${state.sites.length} sites \u00b7 ${scopeStamp} \u00b7 ${String(state.fetchedAt.getHours()).padStart(2,'0')}:${String(state.fetchedAt.getMinutes()).padStart(2,'0')}`
+    ? `Data: Open-Meteo \u00b7 ${dbNote} \u00b7 ${state.sites.length} sites \u00b7 ${scopeStamp} \u00b7 ${String(state.fetchedAt.getHours()).padStart(2,'0')}:${String(state.fetchedAt.getMinutes()).padStart(2,'0')}`
     : '';
 }
 
@@ -936,6 +1005,10 @@ on('share-list', 'click', async () => {
   setTimeout(() => { const b = $('#share-list'); if (b) b.textContent = 'copy link to my list'; }, 2500);
 });
 on('geo', 'click', useMyLocation);
+on('place-edit', 'click', () => {
+  state.editingPlace = true; reflectSettingsBox();
+  const ci = $('#city'); if (ci && state.radius !== 'country') ci.focus();
+});
 on('country', 'change', () => {
   const cc = $('#country').value || null;
   if (cc === state.cc) return;
@@ -980,9 +1053,6 @@ on('radius', 'change', () => {
   state.radius = v === 'country' ? 'country' : parseInt(v, 10);
   saveSettings();
 });
-const tl = $('#today-line');
-if (tl) tl.textContent = new Date().toLocaleDateString('en-GB',
-  { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
 (async function boot() {
   const had = restoreSettings();

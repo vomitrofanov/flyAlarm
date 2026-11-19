@@ -264,9 +264,10 @@ const GATE_TEXT = {
 };
 
 /* ---------------- per-day scoring ---------------- */
-function scoreDay(dayHours, site, tier) {
+function scoreDay(dayHours, site, tier, span) {
+  span = span || { start: DAY_START, end: DAY_END, sunrise: null, sunset: null };
   const hours = dayHours
-    .filter(h => h.hour >= DAY_START && h.hour <= DAY_END)
+    .filter(h => h.hour >= span.start && h.hour <= span.end)
     .map(h => evalHour(h, tier, site));
   const flyable = hours.filter(x => x.state === 'good' || x.state === 'ok');
 
@@ -368,20 +369,40 @@ function normalizeHourly(hourly) {
   }
   return rows;
 }
-const normalizeMulti = json => (Array.isArray(json) ? json : [json]).map(x => x.hourly);
+const normalizeMulti = json => (Array.isArray(json) ? json : [json]).map(x => {
+  const h = x && x.hourly;
+  if (h && x.daily) h._daily = x.daily;          /* sunrise / sunset travel with the hourly block */
+  return h;
+});
+/* Daylight hours for one date: whole hours between sunrise and sunset.
+   Falls back to 08:00-20:00 when the forecast carries no sun times. */
+function daylightHours(hourly, date) {
+  const d = hourly && hourly._daily;
+  if (d && Array.isArray(d.time)) {
+    const i = d.time.indexOf(date);
+    if (i >= 0 && d.sunrise && d.sunset && d.sunrise[i] && d.sunset[i]) {
+      const hm = s => { const t = String(s).slice(11, 16).split(':'); return +t[0] + (+t[1]) / 60; };
+      const start = Math.ceil(hm(d.sunrise[i])), end = Math.floor(hm(d.sunset[i])) - 1;
+      if (end >= start) return { start, end,
+        sunrise: String(d.sunrise[i]).slice(11, 16), sunset: String(d.sunset[i]).slice(11, 16) };
+    }
+  }
+  return { start: DAY_START, end: DAY_END, sunrise: null, sunset: null };
+}
 function evaluateSite(hourly, site, tier) {
   const rows = normalizeHourly(hourly);
   const days = {};
   for (const r of rows) (days[r.date] ??= []).push(r);
   return Object.keys(days).sort().slice(0, 3)
-    .map(date => ({ date, site, ...scoreDay(days[date], site, tier) }));
+    .map(date => { const span = daylightHours(hourly, date);
+      return { date, site, span, ...scoreDay(days[date], site, tier, span) }; });
 }
 
 /* ---------------- exports ---------------- */
 const FlyAlarmCore = {
   TIERS, LEVELS,
   DAY_START, DAY_END, FLYABLE_SCORE,
-  evaluateSite, scoreDay, evalHour, deriveHour, normalizeHourly, normalizeMulti,
+  evaluateSite, scoreDay, daylightHours, evalHour, deriveHour, normalizeHourly, normalizeMulti,
   parsePEFeatures, prepSite,
   haversine, dirAllowed, dirQuality, axisOffset, dirToCompass, meanDir, thermalLabel, clamp,
 };

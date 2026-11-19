@@ -3,120 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FlyAlarm — never miss a flyable day</title>
-<meta name="description" content="FlyAlarm monitors conditions at every paragliding and hang gliding site around you, and notifies you when a genuine flying window opens.">
+<title>FlyAlarm — know when it's flyable</title>
+<meta name="description" content="FlyAlarm reads the forecast for every paragliding and hang gliding launch around you, checks the wind against each launch, and tells you which sites are flyable, when, and why.">
 <meta name="theme-color" content="#0b1017">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M4 40 L18 25 L26 33 L36 21 L44 29' stroke='%2374bddf' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M29 10 Q36 3.5 43 10' stroke='%23e2a63e' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='36' cy='16.8' r='2.2' fill='%23e2a63e'/%3E%3C/svg%3E">
+<link rel="icon" href="app/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="app/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0b1017; --panel:#131b26; --panel2:#182230; --line:#26313f;
-  --ink:#e8edf3; --muted:#9fb0c1; --faint:#5f7080; --accent:#74bddf; --amber:#e2a63e;
+  --ink:#e8edf3; --muted:#9fb0c1; --faint:#7f90a3; --accent:#74bddf; --amber:#e2a63e;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --display:"Space Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--ink);
-  font:16px/1.6 "IBM Plex Sans",system-ui,sans-serif;-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-text-size-adjust:100%}
 a{color:var(--accent);text-decoration:none}
 a:hover{color:#9ed3ea}
 img,svg{display:block;max-width:100%}
 .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
-h1,h2,h3{font-family:"Space Grotesk";letter-spacing:-.01em}
-.kicker{font:600 12px "IBM Plex Mono";letter-spacing:.22em;text-transform:uppercase;color:var(--faint)}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.01em}
+.kicker{font:600 12px var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:46px;
   padding:11px 24px;border-radius:12px;border:1px solid #33445a;color:var(--ink);
   font-weight:500;font-size:15px;transition:border-color .15s,background .15s,color .15s}
 .btn:hover{border-color:var(--accent);color:var(--ink)}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#0b1017;font-weight:600}
 .btn-primary:hover{background:#8fd0ec;border-color:#8fd0ec;color:#0b1017}
-@keyframes fa-ping{0%{transform:scale(.35);opacity:.9}70%{opacity:0}100%{transform:scale(1);opacity:0}}
-@keyframes fa-glide{0%{left:-90px;top:30%}25%{top:24%}50%{top:33%}75%{top:23%}100%{left:104%;top:29%}}
-@keyframes fa-notif{0%{opacity:0;transform:translateY(16px)}8%,42%{opacity:1;transform:translateY(0)}50%,100%{opacity:0;transform:translateY(-10px)}}
-@keyframes fa-blink{0%,100%{opacity:1}50%{opacity:.25}}
+.btn-sm{min-height:40px;padding:8px 16px;font-size:14px}
+@keyframes fa-glide{0%{left:-90px;top:12%}25%{top:8%}50%{top:14%}75%{top:7%}100%{left:104%;top:11%}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 
-/* ---------- nav ---------- */
-nav{display:flex;align-items:center;gap:12px;padding:20px 0}
-.mark{display:flex;align-items:center;gap:10px;font-family:"Space Grotesk";font-weight:700;font-size:21px;color:var(--ink)}
-nav .links{margin-left:auto;display:flex;gap:22px;font-size:14.5px}
+/* nav */
+nav{display:flex;align-items:center;gap:22px;padding:18px 0}
+.mark{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:700;font-size:20px;color:var(--ink)}
+.mark:hover{color:var(--ink)}
+nav .links{margin-left:auto;display:flex;gap:22px;font-size:15px}
 nav .links a{color:var(--muted)}
 nav .links a:hover{color:var(--ink)}
+@media (max-width:640px){ nav .links{display:none} nav .btn{margin-left:auto} }
 
-/* ---------- hero ---------- */
-.hero{position:relative;padding:clamp(28px,6vw,72px) 0 clamp(40px,7vw,90px);overflow:hidden}
-.hero-grid{display:grid;gap:clamp(28px,5vw,64px);grid-template-columns:1fr;align-items:center}
-@media (min-width:900px){.hero-grid{grid-template-columns:1.1fr minmax(300px,420px)}}
-.pill{display:inline-flex;align-items:center;gap:9px;font:500 12.5px "IBM Plex Mono";
-  color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:7px 14px;margin-bottom:22px}
-.dot{width:8px;height:8px;border-radius:50%;background:#4cb877;position:relative}
-.dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid #4cb877;animation:fa-ping 2s infinite}
-h1{font-size:clamp(36px,7.5vw,60px);line-height:1.05;font-weight:700}
+/* hero */
+.hero{position:relative;padding:clamp(24px,5vw,64px) 0 clamp(40px,7vw,90px);overflow:hidden}
+.hero-grid{display:grid;gap:clamp(32px,5vw,64px);grid-template-columns:1fr;align-items:center}
+@media (min-width:900px){.hero-grid{grid-template-columns:1.1fr minmax(300px,380px)}}
+.pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
+  border:1px solid var(--line);border-radius:99px;padding:6px 14px;margin-bottom:22px}
+.pill b{color:var(--ink);font-weight:500}
+h1{font-size:clamp(38px,7.5vw,60px);line-height:1.05;font-weight:700}
 h1 b{color:var(--accent);font-weight:700}
-.hero p.sub{color:var(--muted);font-size:clamp(15.5px,1.4vw,18px);max-width:34em;margin:20px 0 30px}
+.hero p.sub{color:var(--muted);font-size:clamp(16px,1.4vw,18px);max-width:33em;margin:20px 0 30px}
 .cta{display:flex;flex-wrap:wrap;gap:12px}
-.glider{position:absolute;pointer-events:none;animation:fa-glide 16s linear infinite;opacity:.85}
+.glider{position:absolute;z-index:0;pointer-events:none;animation:fa-glide 18s linear infinite;opacity:.7}
+.hero-grid{position:relative;z-index:1}
+@media (max-width:899px){ .glider{display:none} }
 
-/* phone mock */
-.phone{justify-self:center;width:min(320px,86vw);border:1px solid var(--line);border-radius:34px;
-  background:linear-gradient(180deg,#111823,#0d131c);padding:16px 14px 26px;
-  box-shadow:0 30px 70px -30px rgba(0,0,0,.8)}
-.phone .cam{width:86px;height:9px;border-radius:9px;background:#050810;margin:0 auto 18px}
-.notif{border:1px solid var(--line);background:var(--panel2);border-radius:16px;padding:13px 15px;
-  margin-bottom:12px;animation:fa-notif 9s infinite}
-.notif:nth-child(3){animation-delay:4.5s}
-.notif .app{display:flex;justify-content:space-between;font:500 11px "IBM Plex Mono";color:var(--faint);
-  text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px}
-.notif b{display:block;font-size:15px;margin-bottom:2px}
-.notif span{color:var(--muted);font-size:13px}
-.phone .screenbg{height:150px;border-radius:16px;border:1px dashed var(--line);opacity:.5;
-  background:repeating-linear-gradient(135deg,transparent 0 12px,#141d29 12px 24px)}
+/* phone with the real app */
+.phone{justify-self:center;width:min(300px,82vw);border:1px solid var(--line);border-radius:36px;
+  background:#0d131c;padding:12px 10px 14px;box-shadow:0 30px 70px -30px rgba(0,0,0,.8)}
+.phone .cam{width:80px;height:8px;border-radius:8px;background:#050810;margin:2px auto 10px}
+.screen{height:min(520px,112vw);overflow:hidden;border-radius:24px;background:var(--bg);position:relative}
+.screen img{width:100%;height:auto}
+.screen::after{content:"";position:absolute;left:0;right:0;bottom:0;height:70px;
+  background:linear-gradient(180deg,rgba(11,16,23,0),var(--bg))}
+.phone-cap{margin-top:12px;text-align:center;font-size:13px;color:var(--faint)}
 
-/* ---------- sections ---------- */
+/* sections */
 section{padding:clamp(48px,8vw,104px) 0;border-top:1px solid #141c27}
-.sec-head{max-width:640px;margin-bottom:clamp(28px,4vw,52px)}
+.sec-head{max-width:640px;margin-bottom:clamp(28px,4vw,48px)}
 h2{font-size:clamp(28px,4.6vw,42px);line-height:1.12;margin:14px 0 16px}
 .sec-head p{color:var(--muted);font-size:clamp(15px,1.3vw,17px)}
-.features{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
-.feat{display:grid;grid-template-columns:52px 1fr;gap:16px;background:var(--panel);
+.features{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:720px){ .features{grid-template-columns:1fr 1fr} }
+.feat{display:grid;grid-template-columns:48px 1fr;gap:16px;background:var(--panel);
   border:1px solid var(--line);border-radius:16px;padding:22px 20px}
 .feat svg{width:44px;height:44px;stroke:var(--accent);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.feat h3{font-size:17.5px;margin-bottom:7px}
-.feat p{color:var(--muted);font-size:14.5px}
+.feat h3{font-size:17px;margin-bottom:7px}
+.feat p{color:var(--muted);font-size:15px}
 .steps{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr))}
 .step{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 22px}
-.step .num{font:600 13px "IBM Plex Mono";color:var(--accent);letter-spacing:.15em}
-.step h3{font-size:18px;margin:10px 0 8px}
-.step p{color:var(--muted);font-size:14.5px}
+.step .num{font:600 13px var(--mono);color:var(--accent);letter-spacing:.12em}
+.step h3{font-size:17px;margin:10px 0 8px}
+.step p{color:var(--muted);font-size:15px}
 
-/* ---------- get ---------- */
+/* get */
 #get{text-align:center}
 #get .sec-head{margin:0 auto clamp(24px,3vw,40px)}
-.stores{display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
-.store{display:flex;flex-direction:column;align-items:flex-start;min-width:170px;text-align:left;
-  border:1px solid #33445a;border-radius:12px;padding:10px 20px;color:var(--ink);cursor:not-allowed;opacity:.85}
-.store small{font-size:11px;color:var(--faint)}
-.store b{font-family:"Space Grotesk";font-size:18px}
-.store:hover{border-color:var(--line);color:var(--ink)}
+.stores{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center}
+.store{display:flex;flex-direction:column;align-items:flex-start;min-width:160px;text-align:left;
+  border:1px dashed #33445a;border-radius:12px;padding:9px 18px;color:var(--muted);cursor:default}
+.store small{font-size:12px;color:var(--faint)}
+.store b{font-family:var(--display);font-size:17px;font-weight:600}
 
-footer{border-top:1px solid #141c27;padding:34px 0 56px;color:var(--faint);font-size:13px;line-height:1.7}
+footer{border-top:1px solid #141c27;padding:34px 0 56px;color:var(--muted);font-size:13px;line-height:1.7}
 footer .mark{font-size:17px;margin-bottom:12px}
-footer p{max-width:56em}
+footer p{max-width:60em}
+footer p + p{margin-top:8px}
 </style>
 </head>
 <body>
 <div class="wrap">
   <nav>
-    <span class="mark">
+    <a class="mark" href="./">
       <svg width="30" height="26" viewBox="0 0 48 48" aria-hidden="true"><path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="#74bddf" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 10 Q36 3.5 43 10" stroke="#e2a63e" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="36" cy="16.8" r="2.2" fill="#e2a63e"/></svg>
       FlyAlarm
-    </span>
+    </a>
     <div class="links">
-      <a href="#features">Features</a>
       <a href="#how">How it works</a>
-      <a href="#get">Get started</a>
+      <a href="#features">Features</a>
     </div>
+    <a class="btn btn-primary btn-sm" href="app/">Open app</a>
   </nav>
 </div>
 
@@ -124,76 +124,73 @@ footer p{max-width:56em}
   <svg class="glider" width="64" height="30" viewBox="0 0 64 30" aria-hidden="true"><path d="M4 14 Q32 -6 60 14" stroke="#74bddf" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M14 15 L32 26 L50 15" stroke="#74bddf" stroke-width="1" fill="none" opacity=".6"/><circle cx="32" cy="27.5" r="2.4" fill="#74bddf"/></svg>
   <div class="wrap hero-grid">
     <div>
-      <span class="pill"><span class="dot"></span>Monitoring live — 3-day outlook, updated hourly</span>
+      <span class="pill"><b>Free</b> during the test period · flying sites worldwide</span>
       <h1>Know when it's <b>flyable</b>.</h1>
-      <p class="sub">FlyAlarm monitors conditions at every paragliding and hang gliding site around you, and notifies you when a genuine flying window opens.</p>
+      <p class="sub">FlyAlarm reads the forecast for every paragliding and hang gliding launch around you, checks the wind against the direction each launch faces, and tells you which sites are flyable, when, and why.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="#get">Start monitoring</a>
+        <a class="btn btn-primary" href="app/">Open the app</a>
         <a class="btn" href="#how">How it works</a>
       </div>
     </div>
-    <div class="phone" aria-hidden="true">
-      <div class="cam"></div>
-      <div class="notif">
-        <div class="app"><span>FlyAlarm</span><span>now</span></div>
-        <b>Sopot — flyable tomorrow</b>
-        <span>Score 8/10 · window 11:00–17:00</span>
+    <figure class="phone">
+      <div class="cam" aria-hidden="true"></div>
+      <div class="screen">
+        <picture>
+          <source srcset="assets/app-preview.webp" type="image/webp">
+          <img src="assets/app-preview.jpg" width="600" height="1416" loading="eager"
+            alt="FlyAlarm on a phone: 12 sites flyable tomorrow near Kyustendil, with site cards showing score, flying window and wind against the launch">
+        </picture>
       </div>
-      <div class="notif">
-        <div class="app"><span>FlyAlarm</span><span>07:10</span></div>
-        <b>3 sites flyable today</b>
-        <span>Best conditions: Konyavo, 7/10</span>
-      </div>
-      <div class="screenbg"></div>
-    </div>
+      <figcaption class="phone-cap">The app today, with sample weather</figcaption>
+    </figure>
   </div>
 </header>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">How it works</span>
+      <h2>Three steps to a clear answer.</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><span class="num">01</span><h3>Choose where you fly</h3>
+        <p>Pick your country and town, then a radius from 25 to 200 km or the whole country. Sites come from the ParaglidingEarth database, refreshed every week.</p></div>
+      <div class="step"><span class="num">02</span><h3>Set your profile and sites</h3>
+        <p>Choose Conservative, Standard or Performance, and save the launches you actually fly as “My sites” if you like.</p></div>
+      <div class="step"><span class="num">03</span><h3>Read the answer</h3>
+        <p>Every site gets a score, a flying window and the one reason that decides the day. Tap it for wind at launch, gusts, cloudbase and thermal tops.</p></div>
+    </div>
+  </div>
+</section>
 
 <section id="features">
   <div class="wrap">
     <div class="sec-head">
       <span class="kicker">Features</span>
       <h2>Built for the decision, not the forecast.</h2>
-      <p>Weather apps show you data. FlyAlarm evaluates it against each site's launch conditions and your personal limits — and gives you an answer.</p>
+      <p>Weather apps show you data. FlyAlarm evaluates it against each site's launch conditions and your profile, and gives you an answer.</p>
     </div>
     <div class="features">
       <div class="feat">
-        <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="17"/><path d="M22 5v6M22 33v6M5 22h6M33 22h6"/><path d="M22 22 L30 12" stroke="#e2a63e"/><path d="M17 27 L22 22" /></svg>
+        <svg viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="17"/><path d="M22 5v6M22 33v6M5 22h6M33 22h6"/><path d="M22 22 L30 12" stroke="#e2a63e"/><path d="M17 27 L22 22"/></svg>
         <div><h3>Site-aware wind analysis</h3>
-        <p>Every site is evaluated against its own takeoff sector. Wind aligned with launch scores well; crosswind or out-of-sector conditions are flagged, regardless of how calm the forecast looks.</p></div>
+        <p>Every site is checked against its own takeoff direction, at the height of the launch. Wind straight in scores well; crosswind or wind from behind is flagged, however calm the forecast looks.</p></div>
       </div>
       <div class="feat">
-        <svg viewBox="0 0 44 44"><path d="M8 12h28M8 22h28M8 32h28"/><circle cx="18" cy="12" r="3.4" fill="#0b1017"/><circle cx="30" cy="22" r="3.4" fill="#0b1017"/><circle cx="14" cy="32" r="3.4" fill="#0b1017"/></svg>
+        <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M8 12h28M8 22h28M8 32h28"/><circle cx="18" cy="12" r="3.4" fill="#0b1017"/><circle cx="30" cy="22" r="3.4" fill="#0b1017"/><circle cx="14" cy="32" r="3.4" fill="#0b1017"/></svg>
         <div><h3>Personal risk profiles</h3>
-        <p>Conservative, Standard or Performance — each profile applies its own thresholds for wind speed, gusts, gust differential, thermal strength and instability. The same day reads differently for different pilots.</p></div>
+        <p>Conservative, Standard or Performance: each applies its own limits for wind, gusts, turbulence, thermal strength and instability. The same day reads differently for different pilots.</p></div>
       </div>
       <div class="feat">
-        <svg viewBox="0 0 44 44"><path d="M6 34h32"/><rect x="8" y="24" width="5" height="10" rx="1.4"/><rect x="16" y="17" width="5" height="17" rx="1.4"/><rect x="24" y="13" width="5" height="21" rx="1.4"/><rect x="32" y="20" width="5" height="14" rx="1.4"/><path d="M14 8h18M14 8v4M32 8v4" stroke="#e2a63e"/></svg>
+        <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M6 34h32"/><rect x="8" y="24" width="5" height="10" rx="1.4"/><rect x="16" y="17" width="5" height="17" rx="1.4"/><rect x="24" y="13" width="5" height="21" rx="1.4"/><rect x="32" y="20" width="5" height="14" rx="1.4"/><path d="M14 8h18M14 8v4M32 8v4" stroke="#e2a63e"/></svg>
         <div><h3>Defined flying windows</h3>
-        <p>Hour-by-hour scoring identifies when conditions open and close, so a notification means a concrete window — for example 11:00 to 17:00 — not a general impression of the day.</p></div>
+        <p>Hour-by-hour scoring between sunrise and sunset shows when conditions open and close, so “flyable” means a concrete window, for example 11:00 to 15:00, not a general impression of the day.</p></div>
       </div>
       <div class="feat">
-        <svg viewBox="0 0 44 44"><path d="M22 7a9 9 0 0 1 9 9c0 7 3 9 3 9H10s3-2 3-9a9 9 0 0 1 9-9Z"/><path d="M18.5 30a3.6 3.6 0 0 0 7 0"/><circle cx="31" cy="10" r="3.6" fill="#e2a63e" stroke="none"/></svg>
-        <div><h3>Notifications with restraint</h3>
-        <p>FlyAlarm stays silent below your quality threshold. When it does notify you, it includes the site, the score and the window — everything needed to decide whether to go.</p></div>
+        <svg viewBox="0 0 44 44" aria-hidden="true"><path d="M22 6l4.9 10 11.1 1.6-8 7.8 1.9 11L22 31.2l-9.9 5.2 1.9-11-8-7.8 11.1-1.6z"/></svg>
+        <div><h3>Your own sites</h3>
+        <p>Save the launches you actually fly and FlyAlarm watches only those. One link carries your list from the computer to your phone.</p></div>
       </div>
-    </div>
-  </div>
-</section>
-
-<section id="how">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="kicker">How it works</span>
-      <h2>Three steps, then it runs on its own.</h2>
-    </div>
-    <div class="steps">
-      <div class="step"><span class="num">01</span><h3>Choose your location</h3>
-        <p>Set a home point and a search radius from 25 to 200 km. FlyAlarm identifies every registered flying site within range.</p></div>
-      <div class="step"><span class="num">02</span><h3>Set your profile</h3>
-        <p>Select the risk profile that matches your experience and wing. All scoring thresholds adjust accordingly.</p></div>
-      <div class="step"><span class="num">03</span><h3>Receive your alerts</h3>
-        <p>Conditions are re-evaluated hourly across a 3-day outlook. When a site clears your threshold, you're notified with the details.</p></div>
     </div>
   </div>
 </section>
@@ -203,23 +200,24 @@ footer p{max-width:56em}
     <div class="sec-head">
       <svg width="44" height="38" viewBox="0 0 48 48" style="margin:0 auto 16px" aria-hidden="true"><path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="#74bddf" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 10 Q36 3.5 43 10" stroke="#e2a63e" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="36" cy="16.8" r="2.2" fill="#e2a63e"/></svg>
       <h2>Never miss a flyable day again.</h2>
-      <p>Free during the test period. Currently covering Bulgaria, with more regions to follow.</p>
+      <p>Free during the test period. Works in your browser today; on a phone, add it to your home screen. Alerts on Telegram and native phone apps are in the works.</p>
     </div>
     <div class="stores">
-      <a class="store" href="#" title="Coming soon" aria-disabled="true" onclick="return false"><small>Download for</small><b>iOS</b></a>
-      <a class="store" href="#" title="Coming soon" aria-disabled="true" onclick="return false"><small>Download for</small><b>Android</b></a>
       <a class="btn btn-primary" href="app/">Open the web app</a>
+      <span class="store" aria-disabled="true"><small>Coming soon</small><b>iOS app</b></span>
+      <span class="store" aria-disabled="true"><small>Coming soon</small><b>Android app</b></span>
     </div>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <span class="mark">
+    <a class="mark" href="./">
       <svg width="24" height="21" viewBox="0 0 48 48" aria-hidden="true"><path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="#74bddf" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 10 Q36 3.5 43 10" stroke="#e2a63e" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="36" cy="16.8" r="2.2" fill="#e2a63e"/></svg>
       FlyAlarm
-    </span>
+    </a>
     <p>FlyAlarm is a decision-support tool, not a safety authority. Forecast models can underestimate conditions at launch. Always verify the weather on site and consult local pilots before flying.</p>
+    <p>Forecast data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). Flying sites: <a href="https://www.paraglidingearth.com/" target="_blank" rel="noopener">ParaglidingEarth</a> community database.</p>
   </div>
 </footer>
 </body>

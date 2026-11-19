@@ -201,7 +201,7 @@ footer code{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:1
 :root { --fs-base: clamp(14px, 0.6vw + 12px, 16px); }
 html { font-size: var(--fs-base); }
 body { font-size: 1rem; }
-.hero, .today, #today-line { font-size: clamp(26px, 5.5vw, 44px) !important; line-height: 1.1; }
+/* removed in v1.6: oversized date heading */
 .card h2 { font-size: clamp(18px, 2.2vw + 10px, 25px); }
 .reasons { font-size: clamp(13px, 0.4vw + 11.5px, 13.5px); }
 .stats, .meta { font-size: clamp(10.5px, 0.35vw + 9.5px, 11.5px); }
@@ -218,8 +218,8 @@ body { font-size: 1rem; }
 }
 @media (max-width: 560px) {
   .settings { align-items: stretch; }
-  .settings label { flex: 1 1 46%; display: flex; justify-content: space-between; }
-  .settings select, .settings input { flex: 1; margin-left: 8px; min-width: 0; }
+  .settings label { flex: 1 1 100%; }
+  .settings select, .settings input { min-width: 0; }
   #search { flex: 1 1 100%; }
   #day-tabs { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
   #day-tabs::-webkit-scrollbar { display: none; }
@@ -377,3 +377,126 @@ body.picker-open{overflow:hidden}
   .summary{font-size:14px}
   .card-foot .acts{margin-left:0;width:100%}
 }
+
+
+/* ============================================================
+   v1.6 — design review fixes
+   Type scale: 12 / 13 / 15 / 17 / 20 / 28. Monospace for numbers only.
+   Contrast: faint text 5.1:1, flyable cell 3.4:1 against the cards.
+   ============================================================ */
+:root{
+  --faint:#7f90a3; --good-soft:#3b7d5a;
+  --fs-xs:12px; --fs-sm:13px; --fs-base:15px; --fs-md:17px; --fs-lg:20px; --fs-xl:28px;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --display:"Space Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+body{font-family:var(--sans);font-size:var(--fs-base)}
+
+/* header: short title instead of the big date, less decorative height */
+.hero{padding-bottom:56px}
+.ridge{height:56px;background-size:100% 56px}
+header{padding-top:20px}
+.wordmark{font-size:var(--fs-lg)}
+#today-line{font-family:var(--display);font-weight:700;font-size:var(--fs-xl) !important;
+  letter-spacing:-.02em;line-height:1.15;padding:22px 0 0;margin:0;position:relative;z-index:2}
+#today-sub{position:relative;z-index:2;color:var(--muted);font-size:var(--fs-sm);padding-top:4px}
+#status{position:relative;z-index:2;font-family:var(--sans);font-size:var(--fs-sm);color:var(--muted);
+  min-height:20px;padding-top:8px}
+
+/* settings: one line once the place is known */
+.settings{display:block;margin-top:16px;padding:12px 16px}
+.place-summary{display:flex;align-items:center;gap:10px;font-size:var(--fs-base);color:var(--ink)}
+.place-summary[hidden],.place-form[hidden]{display:none}
+.place-ico{color:var(--accent);display:flex}
+#place-edit{margin-left:auto;font-size:var(--fs-sm)}
+.place-form{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end}
+.settings label{display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.f-label{font-size:var(--fs-xs);color:var(--muted)}
+.settings select,.settings input{font-family:var(--sans);font-size:var(--fs-base);min-height:42px;padding:8px 12px}
+.settings .f-country{flex:0 1 220px}
+.settings .f-city{flex:1 1 220px}
+.settings .f-radius{flex:0 1 150px}
+.settings #country{max-width:none;width:100%}
+.form-acts{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+#geo.site-act{font-size:var(--fs-sm)}
+
+/* controls: day + profile first, then the answer */
+.controls{display:block;padding-top:20px}
+#day-tabs{padding:0}
+.tab{font-size:var(--fs-base)}
+.tab .tab-date{font-family:var(--sans);font-size:var(--fs-xs)}
+.tier-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding-top:12px}
+.seg button{font-size:var(--fs-sm)}
+#tier-blurb{font-size:var(--fs-sm);color:var(--muted)}
+#banner{font-size:var(--fs-sm)}
+#alert{font-size:var(--fs-base);margin-top:16px}
+#alert .a-sub{font-size:var(--fs-sm)}
+.viewbar{margin:20px 0 14px}
+.btn,.btn-small{font-size:var(--fs-sm)}
+.seg .count{font-family:var(--sans);font-size:var(--fs-xs)}
+body > .wrap > .legend{display:none}
+
+/* cards */
+.titles h2{font-family:var(--display);font-size:var(--fs-lg)}
+.meta{font-family:var(--sans);font-size:var(--fs-sm);color:var(--muted)}
+.verdict{font-family:var(--sans);font-size:var(--fs-xs);letter-spacing:.06em}
+.score-pill{font-family:var(--mono);font-size:var(--fs-lg)}
+.wind-cap{font-family:var(--mono);font-size:var(--fs-xs)}
+.wi-n{font-size:10px}
+.summary{font-size:var(--fs-base)}
+.card .cell{cursor:pointer}
+.card .cell.sel{outline:2px solid var(--ink);outline-offset:1px}
+.ticks{position:relative;display:block;height:18px;padding-top:4px;
+  font-family:var(--mono);font-size:var(--fs-xs);color:var(--faint)}
+.ticks span{position:absolute;transform:translateX(-50%)}
+.ticks span:first-child{transform:none}
+.ticks span:last-child{transform:translateX(-100%)}
+.hour-info{margin-top:6px;font-size:var(--fs-sm);color:var(--ink)}
+.hour-info[hidden]{display:none}
+.facts dt{font-size:var(--fs-xs)}
+.facts dd{font-size:var(--fs-base)}
+.details .reasons{font-size:var(--fs-sm)}
+.details .legend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:12px 0 0;font-size:var(--fs-xs);color:var(--muted)}
+.chip,.chip-tag{font-family:var(--sans);font-size:var(--fs-xs);letter-spacing:.04em}
+.site-act{font-family:var(--sans);font-size:var(--fs-sm);color:var(--muted)}
+.more{font-size:var(--fs-sm);color:var(--muted)}
+.empty{font-size:var(--fs-sm);color:var(--muted)}
+
+/* explore: no-go sites folded away */
+.nogo-toggle{display:block;width:100%;margin:6px 0 14px;padding:13px 16px;border:1px dashed var(--line2);
+  border-radius:var(--r);background:none;color:var(--muted);font-size:var(--fs-sm);text-align:center}
+.nogo-toggle:hover{color:var(--ink);border-color:#3a4c60}
+.nogo-list[hidden]{display:none}
+
+/* picker + town list */
+.pick-meta,.city-list li small{font-family:var(--sans);font-size:var(--fs-xs)}
+.picker-sub{font-size:var(--fs-sm)}
+#picker-count{font-family:var(--sans);font-size:var(--fs-xs)}
+
+/* footer */
+footer{font-size:var(--fs-sm);color:var(--muted);line-height:1.6}
+footer p + p{margin-top:10px}
+footer .credits a{color:var(--accent)}
+.data-line{font-size:var(--fs-xs);color:var(--faint)}
+
+@media (min-width:720px){ #today-line{font-size:var(--fs-xl) !important} }
+@media (max-width:719px){ #today-line{font-size:24px !important} }
+@media (max-width:560px){
+  .hero{padding-bottom:40px}
+  .ridge{height:40px;background-size:100% 40px}
+  .place-form{gap:10px}
+  .settings .f-country,.settings .f-city,.settings .f-radius{flex:1 1 100%}
+  .settings select,.settings input{margin-left:0;width:100%}
+  .form-acts{width:100%;flex-direction:column;align-items:stretch;gap:8px}
+  .form-acts #search{width:100%}
+  #geo.site-act{text-align:center;padding:6px 0}
+  .titles h2{font-size:var(--fs-md)}
+  .tier-row .seg{flex:1 1 100%}
+  .tier-row .seg button{flex:1;padding-left:6px;padding-right:6px}
+}
+
+/* v1.6 contrast follow-up: small red text, footer data line */
+:root{--bad-text:#e36d52}
+.wind-cap.w-bad,.v-nofly .verdict,.v-nofly .score-pill{color:var(--bad-text)}
+#source{font-family:var(--sans);font-size:var(--fs-xs);color:var(--faint)}
