@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./styles.css">
-<!-- FlyAlarm app v1.3 -->
+<!-- FlyAlarm app v1.4 -->
 </head>
 <body>
 <div class="hero">
@@ -32,11 +32,14 @@
     <div class="head-meta"><span id="source"></span><span id="status"></span></div>
 
     <div class="settings">
-      <button class="btn btn-small" id="geo">Use my location</button>
-      <span class="around">Around <b id="around-name">—</b></span>
-      <label>Lat <input id="lat" type="number" step="0.001" readonly tabindex="-1" aria-readonly="true"></label>
-      <label>Lon <input id="lon" type="number" step="0.001" readonly tabindex="-1" aria-readonly="true"></label>
-      <label>Radius
+      <label class="f-country">Country
+        <select id="country"><option value="">Choose…</option></select>
+      </label>
+      <label class="f-city">City
+        <input id="city" type="text" autocomplete="off" spellcheck="false" placeholder="Start typing your town…"
+          role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="city-list">
+      </label>
+      <label class="f-radius">Radius
         <select id="radius">
           <option value="25">25 km</option>
           <option value="50">50 km</option>
@@ -46,6 +49,7 @@
         </select>
       </label>
       <button class="btn btn-primary" id="search">Find flyable sites</button>
+      <button class="site-act" id="geo" type="button">or use my GPS position</button>
     </div>
   </div>
   <div class="ridge" aria-hidden="true"></div>
@@ -111,6 +115,8 @@
 </div>
 
 
+
+<ul id="city-list" class="city-list" role="listbox" aria-label="Matching towns" hidden></ul>
 
 <script src="./core.js"></script>
 <script src="./ui.js" defer></script>

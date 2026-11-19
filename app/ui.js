@@ -8,7 +8,7 @@
    ============================================================ */
 const C = window.FlyAlarmCore;
 const $ = sel => document.querySelector(sel);
-console.info('FlyAlarm app v1.3');
+console.info('FlyAlarm app v1.4');
 
 /* Optional: your own Cloudflare Worker proxy (flyalarm-proxy.js).
    const PE_PROXY = 'https://YOUR-WORKER.workers.dev/?url='; */
@@ -19,6 +19,7 @@ const PROFILE_VARS = C.LEVELS.map(L => `temperature_${L.p}hPa,wind_speed_${L.p}h
 const CORE_VARS = 'precipitation,precipitation_probability,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cape';
 const RADII = [25, 50, 100, 200];
 const HARD_MAX = 80;        /* absolute safety cap; country mode shows everything below this */
+const COUNTRY_MAX = 250;   /* country-wide: show the whole country, coast included */
 const PROFILE_TOP = 20;     /* Skew-T profiles fetched for the best N sites */
 const CHUNK = 20;
 
@@ -141,54 +142,140 @@ async function reverseGeocode(lat, lon) {
   } catch (e) {}
   return null;
 }
-async function ipLocate() {
-  try {
-    const j = await (await fetchT('https://ipwho.is/', 6000)).json();
-    if (Number.isFinite(j.latitude)) return { lat: j.latitude, lon: j.longitude,
-      name: j.city || null, cc: (j.country_code || '').toUpperCase() || null, country: j.country || null };
-  } catch (e) {}
-  try {
-    const j = await (await fetchT('https://ipapi.co/json/', 6000)).json();
-    if (Number.isFinite(j.latitude)) return { lat: j.latitude, lon: j.longitude,
-      name: j.city || null, cc: (j.country_code || '').toUpperCase() || null, country: j.country_name || null };
-  } catch (e) {}
+/* The pilot states where they are: country, town, radius.
+   No IP lookup. GPS is an optional shortcut that fills the same fields. */
+const regionName = (() => {
+  let dn = null;
+  try { dn = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) {}
+  return cc => { try { return (dn && dn.of(cc)) || cc; } catch (e) { return cc; } };
+})();
+function localeCountry() {
+  for (const l of (navigator.languages || [navigator.language || ''])) {
+    try {
+      const loc = new Intl.Locale(l);
+      if (loc.language === 'en') continue;   /* English UI says nothing about where the pilot lives */
+      const r = loc.maximize().region; if (r) return r.toUpperCase();
+    } catch (e) {}
+  }
   return null;
 }
-async function setPlace(lat, lon, known) {
-  state.lat = lat; state.lon = lon;
-  const g = known && known.cc ? known : await reverseGeocode(lat, lon);
-  state.cityName = (g && g.name) || `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
-  state.cc = (g && g.cc) || null;
-  state.countryName = (g && g.country) || null;
-  saveSettings();
-  reflectPlace();
+function ensureCountryOption(cc) {
+  const sel = $('#country');
+  if (!sel || !cc || [...sel.options].some(o => o.value === cc)) return;
+  const o = document.createElement('option'); o.value = cc; o.textContent = regionName(cc);
+  sel.appendChild(o);
+}
+async function loadCountries() {
+  const sel = $('#country');
+  if (!sel) return;
+  let codes = [];
+  try {
+    const res = await fetchT('../data/index.json', 6000);
+    if (res.ok) codes = Object.keys((await res.json()).countries || {});
+  } catch (e) {}
+  const opts = codes.map(cc => ({ cc, name: regionName(cc) })).sort((a, b) => a.name.localeCompare(b.name));
+  sel.innerHTML = '<option value="">Choose…</option>' +
+    opts.map(o => `<option value="${o.cc}">${o.name}</option>`).join('');
+  if (state.cc) ensureCountryOption(state.cc);
+  sel.value = state.cc || '';
+}
+function setTown(t) {
+  state.lat = t.lat; state.lon = t.lon;
+  state.cityName = t.name; state.cc = t.cc || state.cc;
+  state.countryName = t.country || (state.cc ? regionName(state.cc) : null);
+  ensureCountryOption(state.cc);
+  saveSettings(); reflectPlace(); hideBanner();
+  setStatus(`Around ${state.cityName} — press “Find flyable sites”`);
+}
+function clearTown() {
+  state.lat = null; state.lon = null; state.cityName = null;
+  saveSettings(); reflectPlace();
 }
 function reflectPlace() {
-  const an = $('#around-name'), li = $('#lat'), lo = $('#lon');
-  if (an) an.textContent = state.cityName || '\u2014';
-  if (li) li.value = state.lat != null ? state.lat.toFixed(3) : '';
-  if (lo) lo.value = state.lon != null ? state.lon.toFixed(3) : '';
+  const ci = $('#city'), co = $('#country');
+  if (ci && document.activeElement !== ci) ci.value = state.cityName || '';
+  if (co) { if (state.cc) ensureCountryOption(state.cc); co.value = state.cc || ''; }
 }
+
+/* ---------- town search (Open-Meteo geocoding) ---------- */
+let townResults = [], townActive = -1, townTimer = null, townSeq = 0;
+function positionTownList() {
+  const ci = $('#city'), ul = $('#city-list');
+  if (!ci || !ul || ul.hidden) return;
+  const r = ci.getBoundingClientRect();
+  ul.style.left = Math.max(8, r.left) + 'px';
+  ul.style.top = (r.bottom + 6) + 'px';
+  ul.style.width = Math.min(Math.max(r.width, 260), window.innerWidth - 16) + 'px';
+}
+function closeTownList() {
+  const ul = $('#city-list'); if (ul) ul.hidden = true;
+  const ci = $('#city'); if (ci) ci.setAttribute('aria-expanded', 'false');
+  townActive = -1;
+}
+function renderTownList(msg) {
+  const ul = $('#city-list'), ci = $('#city');
+  if (!ul) return;
+  ul.innerHTML = msg
+    ? `<li class="ce">${msg}</li>`
+    : townResults.map((t, i) => `<li role="option" data-i="${i}" class="${i === townActive ? 'active' : ''}" aria-selected="${i === townActive}">
+        <span>${t.name}</span><small>${[t.admin, t.cc && t.cc !== state.cc ? regionName(t.cc) : null].filter(Boolean).join(', ')}</small></li>`).join('');
+  ul.hidden = false; ci.setAttribute('aria-expanded', 'true');
+  positionTownList();
+}
+async function searchTowns(q) {
+  const seq = ++townSeq;
+  const url = 'https://geocoding-api.open-meteo.com/v1/search'
+    + `?name=${encodeURIComponent(q)}&count=10&language=en&format=json`
+    + (state.cc ? `&countryCode=${state.cc}` : '');
+  try {
+    const j = await (await fetchT(url, 6000)).json();
+    if (seq !== townSeq) return;
+    const rank = r => (String(r.feature_code || '').startsWith('PPL') ? 0 : 1);
+    townResults = (j.results || [])
+      .filter(r => Number.isFinite(r.latitude) && Number.isFinite(r.longitude))
+      .sort((a, b) => rank(a) - rank(b) || (b.population || 0) - (a.population || 0))
+      .slice(0, 8)
+      .map(r => ({ name: r.name, lat: r.latitude, lon: r.longitude, admin: r.admin1 || '',
+                   cc: (r.country_code || '').toUpperCase(), country: r.country || null }));
+    townActive = townResults.length ? 0 : -1;
+    renderTownList(townResults.length ? null : 'No town found — check the spelling or the country.');
+  } catch (e) {
+    if (seq === townSeq) renderTownList('Town search is unavailable right now — try again in a moment.');
+  }
+}
+function pickTown(i) {
+  const t = townResults[i];
+  if (!t) return;
+  closeTownList();
+  setTown(t);
+  const ci = $('#city'); if (ci) { ci.value = t.name; ci.blur(); }
+}
+
+/* ---------- optional GPS shortcut ---------- */
 function useMyLocation() {
-  const done = note => { setStatus(`Around set to ${state.cityName}${note ? ' \u00b7 ' + note : ''}`); hideBanner(); };
-  const netFallback = async why => {
-    setStatus('Locating by network\u2026');
-    const ip = await ipLocate();
-    if (ip) { await setPlace(ip.lat, ip.lon, ip); done('network location \u2014 approximate; on a phone GPS is exact'); }
-    else { setStatus(''); showBanner(why + ' Network location also failed \u2014 keeping the previous setting.'); }
-  };
-  if (!navigator.geolocation) { netFallback('This browser has no geolocation.'); return; }
-  setStatus('Locating\u2026');
+  if (!navigator.geolocation) { showBanner('GPS is not available in this browser — type your town instead.'); return; }
+  setStatus('Locating…');
   navigator.geolocation.getCurrentPosition(
     async pos => {
       const { latitude, longitude, accuracy } = pos.coords;
-      await setPlace(latitude, longitude);
-      done(accuracy >= 1000 ? `\u00b1${Math.round(accuracy / 1000)} km` : `\u00b1${Math.round(Math.max(accuracy, 1))} m`);
-      if (accuracy > 20000) showBanner(`This fix is IP-grade (\u00b1${Math.round(accuracy / 1000)} km) \u2014 typical for desktops without GPS. On a phone this button is exact.`);
+      if (accuracy > 20000) {
+        setStatus('');
+        showBanner(`This device could only estimate your position (±${Math.round(accuracy / 1000)} km), so it was not used. Type your town instead.`);
+        return;
+      }
+      const g = await reverseGeocode(latitude, longitude);
+      setTown({ lat: latitude, lon: longitude,
+        name: (g && g.name) || `${latitude.toFixed(3)}, ${longitude.toFixed(3)}`,
+        cc: g && g.cc, country: g && g.country });
+      setStatus(`Around ${state.cityName} · GPS ±${Math.round(Math.max(accuracy, 1))} m — press “Find flyable sites”`);
     },
-    err => netFallback(err.code === 1 ? 'Location permission is denied for this site.'
-      : err.code === 3 ? 'Location request timed out.' : 'Location unavailable on this device.'),
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+    err => {
+      setStatus('');
+      showBanner(err.code === 1
+        ? 'Location permission is off for this site — type your town instead.'
+        : 'Could not get a GPS position — type your town instead.');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 }
 
 /* ---------------- sites: ParaglidingEarth only ---------------- */
@@ -263,18 +350,20 @@ async function fetchSites() {
     return value;
   } catch (e) { state.siteVia = null; return []; }
 }
+const distFrom = s => state.lat != null ? C.haversine(state.lat, state.lon, s.lat, s.lon) : null;
+const byDistOrName = (a, b) => (a.dist != null && b.dist != null) ? a.dist - b.dist : a.name.localeCompare(b.name);
 function withinParameters(sites) {
-  let list = sites.map(s => ({ ...s, dist: C.haversine(state.lat, state.lon, s.lat, s.lon) }));
+  let list = sites.map(s => ({ ...s, dist: distFrom(s) }));
   if (state.radius !== 'country') list = list.filter(s => s.dist <= state.radius);
-  list = list.filter(s => !hiddenSites.has(siteKey(s))).sort((a, b) => a.dist - b.dist);
+  list = list.filter(s => !hiddenSites.has(siteKey(s))).sort(byDistOrName);
   state.totalFound = list.length;
-  return list.slice(0, HARD_MAX);
+  return list.slice(0, state.radius === 'country' ? COUNTRY_MAX : HARD_MAX);
 }
 
 function scopeList(sites) {
-  let list = sites.map(s => ({ ...s, dist: C.haversine(state.lat, state.lon, s.lat, s.lon) }));
+  let list = sites.map(s => ({ ...s, dist: distFrom(s) }));
   if (state.radius !== 'country') list = list.filter(s => s.dist <= state.radius);
-  return list.filter(s => !hiddenSites.has(siteKey(s)) || isWatched(s.id)).sort((a, b) => a.dist - b.dist);
+  return list.filter(s => !hiddenSites.has(siteKey(s)) || isWatched(s.id)).sort(byDistOrName);
 }
 function watchedWithDistance() {
   return watch.map(s => C.prepSite({ ...s,
@@ -352,9 +441,11 @@ function tryHydrate() {
 /* ---------------- search ---------------- */
 async function runSearch() {
   if (state.view === 'watch') return runWatch();
-  if (state.lat == null) { showBanner('Set your location first \u2014 press \u201cUse my location\u201d.'); return; }
-  if (state.radius === 'country' && !state.cc) {
-    showBanner('Couldn\u2019t detect your country yet \u2014 press \u201cUse my location\u201d again or pick a km radius.'); return;
+  if (state.radius === 'country' && !state.cc) { showBanner('Choose your country first.'); return; }
+  if (state.radius !== 'country' && state.lat == null) {
+    showBanner(state.cc ? 'Type your town and pick it from the list, then press \u201cFind flyable sites\u201d.'
+                        : 'Choose your country and town first.');
+    return;
   }
   if (state.busy) { state.rerun = true; return; }
   state.busy = true;
@@ -553,7 +644,7 @@ function renderAlert(picked, dates) {
   const scope = state.view === 'watch'
     ? `among your ${state.sites.length} site${state.sites.length > 1 ? 's' : ''}`
     : state.radius === 'country'
-      ? `across ${state.countryName || state.cc}` : `within ${state.radius} km`;
+      ? `across ${state.countryName || state.cc}` : `within ${state.radius} km of ${state.cityName}`;
   const flyable = picked.filter(d => d.score >= C.FLYABLE_SCORE);
   const best = picked[0];
   el.hidden = false;
@@ -630,7 +721,7 @@ function render() {
   const dbNote = state.siteVia
     ? `sites: ParaglidingEarth (${state.siteVia})` : 'sites: none';
   const scopeStamp = state.radius === 'country'
-    ? `${state.cc} country-wide` : `${(state.lat ?? 0).toFixed(2)},${(state.lon ?? 0).toFixed(2)} r=${state.radius} km`;
+    ? `${state.cc} country-wide` : `${state.cityName} (${(state.lat ?? 0).toFixed(2)},${(state.lon ?? 0).toFixed(2)}) r=${state.radius} km`;
   $('#source').textContent = state.mode === 'live' && state.view === 'watch'
     ? `Open-Meteo \u00b7 watching ${state.sites.length} site${state.sites.length > 1 ? 's' : ''} \u00b7 ${String(state.fetchedAt.getHours()).padStart(2,'0')}:${String(state.fetchedAt.getMinutes()).padStart(2,'0')}`
     : state.mode === 'live'
@@ -679,7 +770,11 @@ async function openPicker() {
   $('#picker-list').innerHTML = '<p class="pick-empty">Loading sites…</p>';
   $('#picker-count').textContent = `${watch.length} selected`;
   pickerDirty = false;
-  if (state.lat == null) { pickerScope = []; renderPicker(); return; }
+  if ((state.radius === 'country' && !state.cc) || (state.radius !== 'country' && state.lat == null)) {
+    pickerScope = []; renderPicker();
+    $('#picker-list').innerHTML += '<p class="pick-empty">Set your country and town above to see the launches around you.</p>';
+    return;
+  }
   const all = await fetchSites();
   pickerScope = scopeList(all);
   /* keep watched records fresh with the weekly database */
@@ -732,6 +827,45 @@ on('share-list', 'click', async () => {
   setTimeout(() => { const b = $('#share-list'); if (b) b.textContent = 'copy link to my list'; }, 2500);
 });
 on('geo', 'click', useMyLocation);
+on('country', 'change', () => {
+  const cc = $('#country').value || null;
+  if (cc === state.cc) return;
+  state.cc = cc; state.countryName = cc ? regionName(cc) : null;
+  hideBanner();
+  clearTown();                                   /* a town belongs to one country */
+  if (state.view === 'explore') { state.sites = []; state.data = {}; state.mode = null; render(); }
+  if (state.radius === 'country' && cc) setStatus(`${state.countryName} selected \u2014 press \u201cFind flyable sites\u201d`);
+  else { setStatus(''); const ci = $('#city'); if (ci && cc) ci.focus(); }
+});
+on('city', 'input', () => {
+  const q = $('#city').value.trim();
+  clearTimeout(townTimer);
+  if (q.length < 2) { closeTownList(); return; }
+  townTimer = setTimeout(() => searchTowns(q), 250);
+});
+on('city', 'keydown', e => {
+  const ul = $('#city-list');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (ul.hidden || !townResults.length) return;
+    e.preventDefault();
+    townActive = (townActive + (e.key === 'ArrowDown' ? 1 : -1) + townResults.length) % townResults.length;
+    renderTownList();
+  } else if (e.key === 'Enter') {
+    if (!ul.hidden && townActive >= 0) { e.preventDefault(); pickTown(townActive); }
+  } else if (e.key === 'Escape') closeTownList();
+});
+on('city', 'focus', () => { const ci = $('#city'); if (ci.select) ci.select(); });
+on('city', 'blur', () => setTimeout(() => {
+  closeTownList();
+  const ci = $('#city'); if (ci) ci.value = state.cityName || '';   /* only a picked town counts */
+}, 180));
+on('city-list', 'pointerdown', e => {
+  const li = e.target.closest('li[data-i]'); if (!li) return;
+  e.preventDefault(); pickTown(+li.dataset.i);
+});
+on('city-list', 'mousedown', e => e.preventDefault());
+window.addEventListener('resize', positionTownList);
+window.addEventListener('scroll', positionTownList, { passive: true });
 on('radius', 'change', () => {
   const v = $('#radius').value;
   state.radius = v === 'country' ? 'country' : parseInt(v, 10);
@@ -744,6 +878,11 @@ if (tl) tl.textContent = new Date().toLocaleDateString('en-GB',
 (async function boot() {
   const had = restoreSettings();
   $('#radius').value = String(state.radius);
+  await loadCountries();
+  if (!state.cc) {
+    const lc = localeCountry();
+    if (lc && [...$('#country').options].some(o => o.value === lc)) { state.cc = lc; state.countryName = regionName(lc); }
+  }
   reflectPlace();
   const imported = await importFromHash();
   if (imported) state.view = 'watch';
@@ -751,11 +890,11 @@ if (tl) tl.textContent = new Date().toLocaleDateString('en-GB',
   saveSettings();
   reflectWatchCount();
   if (imported) showBanner(`Imported ${imported} site${imported > 1 ? 's' : ''} into My sites.`);
-  if (state.view === 'watch' && watch.length) { tryHydrate(); runSearch(); if (!had) ipLocate().then(ip => ip && setPlace(ip.lat, ip.lon, ip)); return; }
-  if (had) { tryHydrate(); runSearch(); return; }
-  /* first visit: silent IP location (no permission prompt), then search */
-  setStatus('Locating by network\u2026');
-  const ip = await ipLocate();
-  if (ip) { await setPlace(ip.lat, ip.lon, ip); setStatus(''); runSearch(); }
-  else { setStatus(''); showBanner('Press \u201cUse my location\u201d to begin.'); }
+  const ready = state.view === 'watch' ? watch.length > 0
+    : (state.radius === 'country' ? !!state.cc : state.lat != null);
+  if (ready) { tryHydrate(); runSearch(); return; }
+  render();
+  if (state.view === 'explore')
+    showBanner(state.cc ? 'Type your town, pick it from the list, choose a radius and press “Find flyable sites”.'
+                        : 'Choose your country and town, pick a radius and press “Find flyable sites”.');
 })();

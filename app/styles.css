@@ -292,3 +292,29 @@ body.picker-open{overflow:hidden}
   #manage{flex:1 1 100%}
   .picker-foot{flex-wrap:wrap}
 }
+
+
+/* ============================================================
+   v1.4 — explicit country / town / radius
+   ============================================================ */
+.settings .f-city{flex:1 1 240px}
+.settings .f-city input{width:100%;min-width:0;flex:1}
+.settings #country{max-width:230px}
+#geo.site-act{font-size:12px}
+.city-list{position:fixed;z-index:60;list-style:none;margin:0;padding:6px;max-height:min(320px,50vh);overflow-y:auto;
+  border:1px solid var(--line2);border-radius:12px;background:var(--panel2);
+  box-shadow:0 22px 50px -20px rgba(0,0,0,.85)}
+.city-list[hidden]{display:none}
+.city-list li{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:10px 11px;border-radius:8px;cursor:pointer;min-height:44px;color:var(--ink)}
+.city-list li small{font:11.5px "IBM Plex Mono",ui-monospace,Menlo,monospace;color:var(--muted);text-align:right}
+.city-list li.active,.city-list li:hover{background:rgba(116,189,223,.13)}
+.city-list li.ce{color:var(--muted);cursor:default;background:none}
+@media (max-width:560px){
+  .settings .f-country,.settings .f-city,.settings .f-radius{flex:1 1 100%}
+  .settings #country{max-width:none}
+  #geo.site-act{flex:1 1 100%;text-align:center;padding:4px 0}
+}
+
+/* a hidden alert or banner must not leave an empty bar */
+#alert[hidden],#banner[hidden]{display:none}
