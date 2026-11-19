@@ -8,7 +8,7 @@
    ============================================================ */
 const C = window.FlyAlarmCore;
 const $ = sel => document.querySelector(sel);
-console.info('FlyAlarm app v1.2');
+console.info('FlyAlarm app v1.3');
 
 /* Optional: your own Cloudflare Worker proxy (flyalarm-proxy.js).
    const PE_PROXY = 'https://YOUR-WORKER.workers.dev/?url='; */
@@ -28,6 +28,7 @@ const state = {
   radius: 100,
   sites: [], totalFound: 0, onlineSites: 0, siteVia: null,
   data: {}, fetchedAt: null, busy: false, rerun: false, mode: null, seq: 0,
+  view: null,               /* 'watch' = my sites only, 'explore' = everything in radius */
 };
 
 /* ---------------- fetch helpers ---------------- */
@@ -53,7 +54,7 @@ function saveSettings() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       lat: state.lat, lon: state.lon, cc: state.cc,
       cityName: state.cityName, countryName: state.countryName,
-      radius: state.radius, tier: state.tier }));
+      radius: state.radius, tier: state.tier, view: state.view }));
   } catch (e) {}
 }
 function restoreSettings() {
@@ -66,6 +67,7 @@ function restoreSettings() {
     if (typeof s.countryName === 'string') state.countryName = s.countryName;
     if (RADII.includes(s.radius) || s.radius === 'country') state.radius = s.radius;
     if (C.TIERS[s.tier]) state.tier = s.tier;
+    if (s.view === 'watch' || s.view === 'explore') state.view = s.view;
     return Number.isFinite(state.lat);
   } catch (e) { return false; }
 }
@@ -76,6 +78,51 @@ function saveHidden(set) { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify
 let hiddenSites = loadHidden();
 function hideSite(key) { hiddenSites.add(key); saveHidden(hiddenSites); render(); }
 function unhideAll() { hiddenSites = new Set(); saveHidden(hiddenSites); render(); }
+
+/* ---------------- my sites (watchlist) ----------------
+   The pilot's own list of launches to monitor. Stored as full site
+   records so "My sites" needs no database lookup at all; metadata is
+   refreshed from the weekly database whenever the picker opens. */
+const WATCH_KEY = 'flyalarm-watch';
+const slimSite = s => ({ id: s.id, name: s.name, lat: s.lat, lon: s.lon, alt: s.alt ?? null,
+  dirs: s.dirs || [], dirsGood: s.dirsGood || [], tags: s.tags || [],
+  country: s.country || '', link: s.link || null });
+function loadWatch() {
+  try { const a = JSON.parse(localStorage.getItem(WATCH_KEY)); return Array.isArray(a) ? a.filter(s => s && s.id && Number.isFinite(s.lat)) : []; }
+  catch (e) { return []; }
+}
+function saveWatch() { try { localStorage.setItem(WATCH_KEY, JSON.stringify(watch)); } catch (e) {} }
+let watch = loadWatch();
+const isWatched = id => watch.some(s => s.id === id);
+function toggleWatch(site) {
+  if (isWatched(site.id)) watch = watch.filter(s => s.id !== site.id);
+  else watch.push(slimSite(site));
+  saveWatch();
+  reflectWatchCount();
+}
+function reflectWatchCount() {
+  const c = $('#watch-count'); if (c) c.textContent = watch.length ? String(watch.length) : '';
+}
+function shareLink() {
+  const ids = watch.filter(s => s.country && /^pe\d+$/.test(s.id))
+    .map(s => `${s.country.toUpperCase()}.${s.id.slice(2)}`);
+  return `${location.origin}${location.pathname}#w=${ids.join(',')}`;
+}
+async function importFromHash() {
+  const m = location.hash.match(/^#w=([A-Za-z0-9.,]+)/);
+  if (!m) return 0;
+  const want = m[1].split(',').map(x => x.split('.')).filter(p => p.length === 2 && /^[A-Za-z]{2}$/.test(p[0]));
+  const byCC = {};
+  for (const [cc, n] of want) (byCC[cc.toUpperCase()] ??= new Set()).add('pe' + n);
+  let added = 0;
+  for (const [cc, ids] of Object.entries(byCC)) {
+    const sites = await loadCountryFile(cc);
+    for (const s of sites) if (ids.has(s.id) && !isWatched(s.id)) { watch.push(slimSite(s)); added++; }
+  }
+  saveWatch();
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { location.hash = ''; }
+  return added;
+}
 
 /* ---------------- location: GPS-first, reverse-geocoded ---------------- */
 async function reverseGeocode(lat, lon) {
@@ -224,6 +271,17 @@ function withinParameters(sites) {
   return list.slice(0, HARD_MAX);
 }
 
+function scopeList(sites) {
+  let list = sites.map(s => ({ ...s, dist: C.haversine(state.lat, state.lon, s.lat, s.lon) }));
+  if (state.radius !== 'country') list = list.filter(s => s.dist <= state.radius);
+  return list.filter(s => !hiddenSites.has(siteKey(s)) || isWatched(s.id)).sort((a, b) => a.dist - b.dist);
+}
+function watchedWithDistance() {
+  return watch.map(s => C.prepSite({ ...s,
+    dist: state.lat != null ? C.haversine(state.lat, state.lon, s.lat, s.lon) : null }))
+    .sort((a, b) => (a.dist ?? 0) - (b.dist ?? 0));
+}
+
 /* ---------------- weather: two-phase ---------------- */
 function batchUrl(sites, vars) {
   return 'https://api.open-meteo.com/v1/forecast'
@@ -275,14 +333,14 @@ function saveSnapshot() {
       slim[id] = o;
     }
     localStorage.setItem(SNAP_KEY, JSON.stringify({
-      t: Date.now(), sites: state.sites, data: slim,
+      t: Date.now(), view: state.view, sites: state.sites, data: slim,
       stamp: { lat: state.lat, lon: state.lon, radius: state.radius, cc: state.cc } }));
   } catch (e) {}
 }
 function tryHydrate() {
   try {
     const s = JSON.parse(localStorage.getItem(SNAP_KEY));
-    if (!s || Date.now() - s.t > 3 * 3600e3 || !s.sites?.length) return false;
+    if (!s || Date.now() - s.t > 3 * 3600e3 || !s.sites?.length || (s.view || 'explore') !== state.view) return false;
     state.sites = s.sites.map(C.prepSite);
     state.data = s.data; state.mode = 'live'; state.fetchedAt = new Date(s.t);
     render();
@@ -293,6 +351,7 @@ function tryHydrate() {
 
 /* ---------------- search ---------------- */
 async function runSearch() {
+  if (state.view === 'watch') return runWatch();
   if (state.lat == null) { showBanner('Set your location first \u2014 press \u201cUse my location\u201d.'); return; }
   if (state.radius === 'country' && !state.cc) {
     showBanner('Couldn\u2019t detect your country yet \u2014 press \u201cUse my location\u201d again or pick a km radius.'); return;
@@ -338,6 +397,32 @@ async function runSearch() {
 function endBusy() {
   state.busy = false;
   if (state.rerun) { state.rerun = false; runSearch(); }
+}
+async function runWatch() {
+  if (state.busy) { state.rerun = true; return; }
+  hideBanner();
+  if (!watch.length) {
+    state.sites = []; state.data = {}; state.mode = null;
+    setStatus(''); render(); return;
+  }
+  state.busy = true;
+  const seq = ++state.seq;
+  const sites = watchedWithDistance();
+  state.sites = sites; state.totalFound = sites.length;
+  setStatus(`Fetching forecast for your ${sites.length} site${sites.length > 1 ? 's' : ''}…`);
+  try {
+    const hourlies = await fetchSurface(sites);
+    if (state.rerun || seq !== state.seq) { endBusy(); return; }
+    state.data = {};
+    sites.forEach((s, i) => { state.data[s.id] = hourlies[i] || { error: true }; });
+    state.mode = 'live'; state.fetchedAt = new Date();
+    setStatus(''); render(); saveSnapshot();
+    fetchProfiles(currentRanking().slice(0, PROFILE_TOP).map(d => d.site), seq);
+  } catch (e) {
+    state.mode = null; setStatus(''); render();
+    showBanner("Couldn't reach the forecast service. Check your connection and press “Refresh my sites”.");
+  }
+  endBusy();
 }
 
 /* ---------------- SVG builders ---------------- */
@@ -457,7 +542,7 @@ function siteCard(day, rank) {
       <div class="ticks"><span>8</span><span>12</span><span>16</span><span>20</span></div></div>
     <ul class="reasons">${reasons || '<li>No usable window for this profile.</li>'}</ul>
     <p class="stats">wind ${s.windMin}\u2013${s.windMaxSeen} km/h \u00b7 gusts \u2264${s.gustMax}${profBits ? ' \u00b7 ' + profBits : ''} \u00b7 CAPE \u2264${s.capeMax} \u00b7 thermals ${C.thermalLabel(s.thermalPeak)}</p>
-    <p class="note">${site.link ? `<a class="site-act" href="${site.link}" target="_blank" rel="noopener">PE page \u2197</a> ` : ''}<button class="site-act" data-hide="${siteKey(site)}">hide site</button></p>
+    <p class="note">${site.link ? `<a class="site-act" href="${site.link}" target="_blank" rel="noopener">PE page \u2197</a> ` : ''}<button class="site-act watch-act${isWatched(site.id) ? ' on' : ''}" data-watch="${site.id}">${isWatched(site.id) ? (state.view === 'watch' ? 'remove from my sites' : '\u2605 in my sites') : '\u2606 add to my sites'}</button>${state.view === 'explore' ? ` <button class="site-act" data-hide="${siteKey(site)}">hide site</button>` : ''}</p>
   </article>`;
 }
 
@@ -465,8 +550,10 @@ function renderAlert(picked, dates) {
   const el = $('#alert');
   if (!picked.length || !dates.length) { el.hidden = true; return; }
   const label = dayTag(dates[state.dayIdx], state.dayIdx).toLowerCase();
-  const scope = state.radius === 'country'
-    ? `across ${state.countryName || state.cc}` : `within ${state.radius} km`;
+  const scope = state.view === 'watch'
+    ? `among your ${state.sites.length} site${state.sites.length > 1 ? 's' : ''}`
+    : state.radius === 'country'
+      ? `across ${state.countryName || state.cc}` : `within ${state.radius} km`;
   const flyable = picked.filter(d => d.score >= C.FLYABLE_SCORE);
   const best = picked[0];
   el.hidden = false;
@@ -490,6 +577,11 @@ function render() {
   document.querySelectorAll('[data-tier]').forEach(b =>
     b.classList.toggle('active', b.dataset.tier === state.tier));
   const tb = $('#tier-blurb'); if (tb) tb.textContent = tier.blurb;
+  document.querySelectorAll('[data-view]').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === state.view));
+  const sb = $('#search'); if (sb) sb.textContent = state.view === 'watch' ? 'Refresh my sites' : 'Find flyable sites';
+  document.body.classList.toggle('view-watch', state.view === 'watch');
+  reflectWatchCount();
 
   const { evaluated, failed } = evaluateAll(tier);
   const tabs = $('#day-tabs');
@@ -508,26 +600,106 @@ function render() {
     .sort((a, b) => b.score - a.score || b.window.len - a.window.len);
   renderAlert(picked, dates);
 
-  const hiddenNote = hiddenSites.size
+  const hiddenNote = state.view === 'explore' && hiddenSites.size
     ? `<p class="empty">${hiddenSites.size} site${hiddenSites.size > 1 ? 's' : ''} hidden \u00b7 <button class="site-act" id="unhide">show all</button></p>` : '';
-  const capNote = state.totalFound > state.sites.length
+  const capNote = state.view === 'explore' && state.totalFound > state.sites.length
     ? `<p class="empty">Showing the nearest ${state.sites.length} of ${state.totalFound} sites.</p>` : '';
   $('#cards').innerHTML = hiddenNote + capNote +
     (picked.map((d, i) => siteCard(d, i + 1)).join('') +
      failed.map(s => `<article class="card v-err"><div class="card-head">
        <div class="titles"><h2>${s.name}</h2><p class="meta">forecast unavailable</p></div></div></article>`).join('')) ||
-    '<p class="empty">No data yet. Press \u201cFind flyable sites\u201d.</p>';
+    (state.view === 'watch' && !watch.length
+      ? `<div class="empty-watch"><h3>No sites in your list yet</h3>
+          <p>Pick the launches you actually fly. FlyAlarm will then monitor only those, and the alert counts only them.</p>
+          <div class="empty-acts"><button class="btn btn-primary" id="empty-pick">Choose my sites</button>
+          <button class="btn" data-goto="explore">Browse everything nearby</button></div></div>`
+      : '<p class="empty">No data yet. Press \u201cFind flyable sites\u201d.</p>');
   document.querySelectorAll('[data-hide]').forEach(b =>
     b.addEventListener('click', () => hideSite(b.dataset.hide)));
   const un = $('#unhide'); if (un) un.addEventListener('click', unhideAll);
+  document.querySelectorAll('[data-watch]').forEach(b => b.addEventListener('click', () => {
+    const site = state.sites.find(s => s.id === b.dataset.watch);
+    if (!site) return;
+    toggleWatch(site);
+    if (state.view === 'watch') { state.sites = state.sites.filter(s => s.id !== site.id); saveSnapshot(); }
+    render();
+  }));
+  const ep = $('#empty-pick'); if (ep) ep.addEventListener('click', openPicker);
+  document.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => setView(b.dataset.goto)));
 
   const dbNote = state.siteVia
     ? `sites: ParaglidingEarth (${state.siteVia})` : 'sites: none';
   const scopeStamp = state.radius === 'country'
     ? `${state.cc} country-wide` : `${(state.lat ?? 0).toFixed(2)},${(state.lon ?? 0).toFixed(2)} r=${state.radius} km`;
-  $('#source').textContent = state.mode === 'live'
+  $('#source').textContent = state.mode === 'live' && state.view === 'watch'
+    ? `Open-Meteo \u00b7 watching ${state.sites.length} site${state.sites.length > 1 ? 's' : ''} \u00b7 ${String(state.fetchedAt.getHours()).padStart(2,'0')}:${String(state.fetchedAt.getMinutes()).padStart(2,'0')}`
+    : state.mode === 'live'
     ? `Open-Meteo \u00b7 ${dbNote} \u00b7 ${state.sites.length} sites \u00b7 ${scopeStamp} \u00b7 ${String(state.fetchedAt.getHours()).padStart(2,'0')}:${String(state.fetchedAt.getMinutes()).padStart(2,'0')}`
     : '';
+}
+
+/* ---------------- view switching ---------------- */
+function setView(v) {
+  if (v === state.view) return;
+  state.view = v; saveSettings();
+  state.sites = []; state.data = {}; state.mode = null;
+  if (!tryHydrate()) render();
+  runSearch();
+}
+
+/* ---------------- picker: choose my sites ---------------- */
+let pickerScope = [], pickerDirty = false;
+function pickRow(s) {
+  const meta = [
+    s.dist != null ? `${Math.round(s.dist)} km` : null,
+    s.alt ? `${s.alt} m` : null,
+    s.dirs && s.dirs.length ? s.dirs.join(' ') : 'dirs unknown',
+    s.country || null,
+  ].filter(Boolean).join(' · ');
+  return `<label class="pick-row"><input type="checkbox" data-pick="${s.id}"${isWatched(s.id) ? ' checked' : ''}>
+    <span class="pick-name">${s.name}</span><span class="pick-meta">${meta}</span></label>`;
+}
+function renderPicker() {
+  const f = ($('#picker-filter').value || '').trim().toLowerCase();
+  const match = s => !f || s.name.toLowerCase().includes(f);
+  const mine = watchedWithDistance().filter(match);
+  const rest = pickerScope.filter(s => !isWatched(s.id) && match(s));
+  const scopeLabel = state.radius === 'country'
+    ? `All of ${state.countryName || state.cc || 'your country'}`
+    : `Within ${state.radius} km of ${state.cityName || 'your location'}`;
+  $('#picker-list').innerHTML =
+    (mine.length ? `<p class="pick-sec">In my sites (${mine.length})</p>` + mine.map(pickRow).join('') : '') +
+    `<p class="pick-sec">${scopeLabel} (${rest.length})</p>` +
+    (rest.length ? rest.map(pickRow).join('') : '<p class="pick-empty">Nothing here — widen the radius or clear the filter.</p>');
+  $('#picker-count').textContent = `${watch.length} selected`;
+}
+async function openPicker() {
+  const p = $('#picker'); p.hidden = false;
+  document.body.classList.add('picker-open');
+  $('#picker-list').innerHTML = '<p class="pick-empty">Loading sites…</p>';
+  $('#picker-count').textContent = `${watch.length} selected`;
+  pickerDirty = false;
+  if (state.lat == null) { pickerScope = []; renderPicker(); return; }
+  const all = await fetchSites();
+  pickerScope = scopeList(all);
+  /* keep watched records fresh with the weekly database */
+  let changed = false;
+  for (const s of pickerScope) {
+    const i = watch.findIndex(w => w.id === s.id);
+    if (i >= 0) { const fresh = slimSite(s); if (JSON.stringify(fresh) !== JSON.stringify(watch[i])) { watch[i] = fresh; changed = true; } }
+  }
+  if (changed) saveWatch();
+  renderPicker();
+  setTimeout(() => $('#picker-filter').focus(), 50);
+}
+function closePicker() {
+  $('#picker').hidden = true;
+  document.body.classList.remove('picker-open');
+  if (pickerDirty) {
+    if (state.view !== 'watch' && watch.length) setView('watch');
+    else if (state.view === 'watch') runSearch();
+    else render();
+  }
 }
 
 /* ---------------- chrome + boot ---------------- */
@@ -539,6 +711,26 @@ const on = (id, ev, fn) => { const el = $('#' + id); if (el) el.addEventListener
 document.querySelectorAll('[data-tier]').forEach(b =>
   b.addEventListener('click', () => { state.tier = b.dataset.tier; saveSettings(); render(); }));
 on('search', 'click', runSearch);
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => setView(b.dataset.view)));
+on('manage', 'click', openPicker);
+on('picker-close', 'click', closePicker);
+on('picker-done', 'click', closePicker);
+on('picker-filter', 'input', renderPicker);
+on('picker', 'click', e => { if (e.target.id === 'picker') closePicker(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#picker').hidden) closePicker(); });
+on('picker-list', 'change', e => {
+  const id = e.target.dataset && e.target.dataset.pick;
+  if (!id) return;
+  const site = pickerScope.find(s => s.id === id) || watch.find(s => s.id === id);
+  if (!site) return;
+  toggleWatch(site); pickerDirty = true; renderPicker();
+});
+on('share-list', 'click', async () => {
+  const link = shareLink();
+  try { await navigator.clipboard.writeText(link); $('#share-list').textContent = 'link copied ✓'; }
+  catch (e) { window.prompt('Open this link on your other device:', link); }
+  setTimeout(() => { const b = $('#share-list'); if (b) b.textContent = 'copy link to my list'; }, 2500);
+});
 on('geo', 'click', useMyLocation);
 on('radius', 'change', () => {
   const v = $('#radius').value;
@@ -553,6 +745,13 @@ if (tl) tl.textContent = new Date().toLocaleDateString('en-GB',
   const had = restoreSettings();
   $('#radius').value = String(state.radius);
   reflectPlace();
+  const imported = await importFromHash();
+  if (imported) state.view = 'watch';
+  if (!state.view) state.view = watch.length ? 'watch' : 'explore';
+  saveSettings();
+  reflectWatchCount();
+  if (imported) showBanner(`Imported ${imported} site${imported > 1 ? 's' : ''} into My sites.`);
+  if (state.view === 'watch' && watch.length) { tryHydrate(); runSearch(); if (!had) ipLocate().then(ip => ip && setPlace(ip.lat, ip.lon, ip)); return; }
   if (had) { tryHydrate(); runSearch(); return; }
   /* first visit: silent IP location (no permission prompt), then search */
   setStatus('Locating by network\u2026');

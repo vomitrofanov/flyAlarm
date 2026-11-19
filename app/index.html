@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./styles.css">
-<!-- FlyAlarm app v1.1 -->
+<!-- FlyAlarm app v1.3 -->
 </head>
 <body>
 <div class="hero">
@@ -16,7 +16,7 @@
   <div class="wrap">
     <header>
       <div class="mark">
-        <a href="FlyAlarm Landing v2.dc.html" class="mark-link" title="FlyAlarm home">
+        <a href="../" class="mark-link" title="FlyAlarm home">
         <svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true">
           <path d="M4 40 L18 25 L26 33 L36 21 L44 29" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M30 8 Q36 2.5 42 8" stroke="var(--amber)" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".8"/>
@@ -53,6 +53,13 @@
 </div>
 
 <div class="wrap">
+  <div class="viewbar">
+    <div class="seg" role="group" aria-label="Which sites">
+      <button data-view="watch">My sites <span id="watch-count" class="count"></span></button>
+      <button data-view="explore">Explore nearby</button>
+    </div>
+    <button class="btn btn-small" id="manage">Choose my sites</button>
+  </div>
   <div id="alert" hidden></div>
   <div id="banner" hidden></div>
 
@@ -79,11 +86,28 @@
     <strong>Decision support only — not a safety authority.</strong>
     Scores come from raw model data (Open-Meteo best-match) with simplified site rules;
     10 m model wind underestimates launch wind on ridges. Always check the sky, the windsock
-    and local pilots before flying. Sites come from the online ParaglidingEarth database
-    merged with a built-in Bulgarian pack; entries marked “approx. data” need local verification.
-    On each card the compass shows the takeoff sector (solid shading = good direction, faint = possible) and the forecast wind arrow; scores now reward wind blowing straight into the launch axis.
-    Thresholds live in the <code>TIERS</code> block at the top of this file.
+    and local pilots before flying. Sites come from ParaglidingEarth, mirrored weekly into
+    FlyAlarm's own database. On each card the compass shows the takeoff sector (solid shading =
+    good direction, faint = possible) and the forecast wind arrow. “My sites” is stored on this
+    device; use “copy link to my list” in the picker to carry it to your phone.
   </footer>
+
+  <div id="picker" class="picker" hidden role="dialog" aria-modal="true" aria-labelledby="picker-title">
+    <div class="picker-box">
+      <div class="picker-head">
+        <h3 id="picker-title">Choose my sites</h3>
+        <button class="site-act" id="picker-close">close</button>
+      </div>
+      <p class="picker-sub">Tick the launches you fly. Only these are monitored in “My sites”. The list below follows your location and radius above.</p>
+      <input id="picker-filter" type="search" placeholder="Filter by name…" autocomplete="off">
+      <div id="picker-list" class="picker-list"></div>
+      <div class="picker-foot">
+        <span id="picker-count"></span>
+        <button class="site-act" id="share-list">copy link to my list</button>
+        <button class="btn btn-primary btn-small" id="picker-done">Done</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 
