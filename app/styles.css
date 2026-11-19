@@ -318,3 +318,62 @@ body.picker-open{overflow:hidden}
 
 /* a hidden alert or banner must not leave an empty bar */
 #alert[hidden],#banner[hidden]{display:none}
+
+
+/* ============================================================
+   v1.5 — compact site cards + launch/wind indicator
+   ============================================================ */
+.card{cursor:pointer;padding:16px 18px 10px}
+.card-head{gap:14px;align-items:flex-start}
+.titles h2{font-size:clamp(17px,1.2vw + 12px,20px);white-space:normal;overflow:visible}
+.meta{padding-top:3px}
+.wind-box{flex:none;display:flex;flex-direction:column;align-items:center;width:66px;margin:-8px 0 0 -4px}
+.wind-ind{display:block;overflow:visible}
+.wi-ring{fill:none;stroke:var(--line2);stroke-width:1.4}
+.wi-fan{fill:var(--accent);opacity:.32;stroke:none}
+.wi-n{font:600 8.5px "IBM Plex Mono",ui-monospace,Menlo,monospace;fill:var(--faint)}
+.wi-calm{fill:var(--faint)}
+.wi-arrow line{stroke-width:2.6;stroke-linecap:round}
+.wi-arrow.w-good line{stroke:var(--good)} .wi-arrow.w-good path{fill:var(--good)}
+.wi-arrow.w-warn line{stroke:var(--amber)} .wi-arrow.w-warn path{fill:var(--amber)}
+.wi-arrow.w-bad line{stroke:var(--bad)} .wi-arrow.w-bad path{fill:var(--bad)}
+.wi-arrow.w-unk line{stroke:var(--muted)} .wi-arrow.w-unk path{fill:var(--muted)}
+.wind-cap{font:600 10.5px "IBM Plex Mono",ui-monospace,Menlo,monospace;margin-top:1px;white-space:nowrap;color:var(--muted)}
+.wind-cap.w-good{color:var(--good)} .wind-cap.w-warn{color:var(--amber)} .wind-cap.w-bad{color:var(--bad)}
+.score{min-width:64px}
+.score-pill{display:inline-block;min-width:42px;padding:3px 10px;border-radius:10px;
+  font:600 22px/1.2 "IBM Plex Mono",ui-monospace,Menlo,monospace;text-align:center;
+  background:rgba(159,176,193,.1);color:var(--muted)}
+.v-top .score-pill{background:rgba(76,184,119,.16);color:var(--good)}
+.v-good .score-pill{background:rgba(76,184,119,.1);color:#7fc795}
+.v-marg .score-pill,.v-poor .score-pill{background:rgba(226,166,62,.13);color:var(--amber)}
+.v-nofly .score-pill{background:rgba(215,91,64,.13);color:var(--bad)}
+.verdict{padding-top:5px}
+.summary{margin:12px 0 10px;font-size:14.5px;line-height:1.45;color:var(--ink)}
+.summary.s-storm{color:var(--amber)}
+.card .strip{margin-top:0}
+.card .cell{height:18px;border-radius:4px}
+.details{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.card.open .details{display:block}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 18px}
+.facts dt{font-size:12px;color:var(--muted)}
+.facts dd{font-size:14px;color:var(--ink);font-weight:500}
+.details .reasons{padding-top:12px;font-size:13px}
+.card-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+.card-foot .acts{margin-left:auto;display:flex;flex-wrap:wrap;gap:12px}
+.more{display:block;margin:8px auto 0;padding:6px 10px;background:none;border:none;cursor:pointer;
+  font:500 12px "IBM Plex Sans",system-ui,sans-serif;color:var(--faint)}
+.more::after{content:" ▾"}
+.card.open .more::after{content:" ▴"}
+.more:hover{color:var(--accent)}
+@media (pointer:coarse){.card .cell{height:20px}}
+@media (max-width:560px){
+  .card{padding:13px 13px 8px}
+  .card-head{gap:10px}
+  .wind-box{width:54px}
+  .wind-ind{width:58px;height:58px}
+  .score{min-width:52px}
+  .score-pill{font-size:19px;min-width:36px;padding:2px 8px}
+  .summary{font-size:14px}
+  .card-foot .acts{margin-left:0;width:100%}
+}

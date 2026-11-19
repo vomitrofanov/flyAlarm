@@ -8,7 +8,7 @@
    ============================================================ */
 const C = window.FlyAlarmCore;
 const $ = sel => document.querySelector(sel);
-console.info('FlyAlarm app v1.4');
+console.info('FlyAlarm app v1.5');
 
 /* Optional: your own Cloudflare Worker proxy (flyalarm-proxy.js).
    const PE_PROXY = 'https://YOUR-WORKER.workers.dev/?url='; */
@@ -516,46 +516,6 @@ async function runWatch() {
   endBusy();
 }
 
-/* ---------------- SVG builders ---------------- */
-const polar = (cx, cy, r, deg) => {
-  const a = (deg - 90) * Math.PI / 180;
-  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-};
-function compassSVG(site, windDir, inSector) {
-  const S = 62, c = S / 2, r = 24;
-  let p = `<svg class="compass" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" aria-hidden="true">`;
-  p += `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--line)" stroke-width="1.5"${site.sectorUnknown ? ' stroke-dasharray="3 3"' : ''}/>`;
-  for (let d = 0; d < 360; d += 45) {
-    const [x1, y1] = polar(c, c, r, d), [x2, y2] = polar(c, c, r - 3.5, d);
-    p += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--faint)" stroke-width="1"/>`;
-  }
-  if (site.sectorUnknown) p += `<text x="${c}" y="${c + 4}" text-anchor="middle" class="cmp-q">?</text>`;
-  else for (const cd of site._degsW) {
-    const [x1, y1] = polar(c, c, r, cd.deg - 25), [x2, y2] = polar(c, c, r, cd.deg + 25);
-    p += `<path d="M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z" fill="var(--accent)" opacity="${cd.w === 1 ? '0.30' : '0.13'}"/>`;
-  }
-  if (windDir != null) {
-    const col = inSector === false ? 'var(--bad)' : 'var(--good)';
-    const [ax, ay] = polar(c, c, r - 2, windDir), [bx, by] = polar(c, c, 7, windDir);
-    const [h1x, h1y] = polar(bx, by, 5.5, windDir + 150), [h2x, h2y] = polar(bx, by, 5.5, windDir - 150);
-    p += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${col}" stroke-width="2.2" stroke-linecap="round"/>`;
-    p += `<path d="M ${bx} ${by} L ${h1x} ${h1y} L ${h2x} ${h2y} Z" fill="${col}"/>`;
-  }
-  const [nx, ny] = polar(c, c, r + 6.5, 0);
-  p += `<text x="${nx}" y="${ny + 3}" text-anchor="middle" class="cmp-n">N</text></svg>`;
-  return p;
-}
-function gaugeSVG(score) {
-  const S = 58, c = S / 2, r = 24, circ = 2 * Math.PI * r;
-  const frac = Math.max(0.02, score / 10);
-  return `<svg class="gauge" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" aria-hidden="true">
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--line)" stroke-width="4.5"/>
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="currentColor" stroke-width="4.5"
-      stroke-linecap="round" stroke-dasharray="${(circ * frac).toFixed(1)} ${circ.toFixed(1)}"
-      transform="rotate(-90 ${c} ${c})"/>
-    <text x="${c}" y="${c + 5.5}" text-anchor="middle" class="g-num">${score}</text></svg>`;
-}
-
 /* ---------------- rendering ---------------- */
 const WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const dayTag = (iso, idx) => idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow' : WD[new Date(iso + 'T12:00').getDay()];
@@ -592,48 +552,186 @@ function currentRanking() {
     .sort((a, b) => b.score - a.score || b.window.len - a.window.len);
 }
 
-function siteCard(day, rank) {
-  const site = day.site;
-  const nH = C.DAY_END - C.DAY_START + 1;
-  const winHours = day.hours.filter(x => x.state === 'good' || x.state === 'ok');
-  const dirPool = (winHours.length ? winHours : day.hours).map(x => x.raw.dir);
-  const meanW = dirPool.length ? C.meanDir(dirPool) : null;
-  const inSector = site.sectorUnknown || meanW == null ? null : C.dirAllowed(meanW, site._degs);
-  const cells = day.hours.map(h => `<div class="cell c-${h.state}" title="${hourTooltip(h)}"></div>`).join('');
-  const bracket = day.window.len
-    ? `<div class="bracket" style="left:${(day.window.from - C.DAY_START) / nH * 100}%;width:${day.window.len / nH * 100}%">
-         <span>${day.window.from}\u2013${day.window.to + 1} h</span></div>` : '';
-  const reasons = day.reasons.map(r =>
-    `<li class="${r.startsWith('\u26a1') || r.startsWith('\u26a0') ? 'r-storm' : ''}">${r}</li>`).join('');
+/* ---------------- launch + wind indicator ----------------
+   Blue fan  = the directions the launch faces (contiguous directions merged).
+   Arrow     = forecast wind, drawn flowing in from outside toward the launch.
+   Colour    = green into the fan, amber into the fan but well off axis, red outside.
+   Caption   = wind direction and speed in the same colour, so it reads without a legend. */
+const polar = (cx, cy, r, deg) => {
+  const a = (deg - 90) * Math.PI / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+};
+/* contiguous launch sectors as [fromDeg, toDeg] arcs (clockwise), gaps over 45 degrees split them */
+function launchArcs(site) {
+  const degs = [...new Set((site._degs || []).map(d => ((d % 360) + 360) % 360))].sort((a, b) => a - b);
+  if (!degs.length) return [];
+  if (degs.length >= 8 && degs.every((d, i) => i === 0 || d - degs[i - 1] <= 45) && (360 - degs[degs.length - 1] + degs[0]) <= 45)
+    return [[0, 360]];
+  const groups = [[degs[0]]];
+  for (let i = 1; i < degs.length; i++) {
+    if (degs[i] - degs[i - 1] <= 45) groups[groups.length - 1].push(degs[i]);
+    else groups.push([degs[i]]);
+  }
+  if (groups.length > 1) {                      /* join across north */
+    const first = groups[0], last = groups[groups.length - 1];
+    if (360 - last[last.length - 1] + first[0] <= 45) { groups[0] = last.concat(first); groups.pop(); }
+  }
+  return groups.map(g => [g[0], g[g.length - 1]]);
+}
+function launchFacing(site) {
+  if (site.sectorUnknown) return 'directions unknown';
+  const arcs = launchArcs(site);
+  if (arcs.length === 1 && arcs[0][1] - arcs[0][0] >= 360) return 'all directions';
+  return arcs.map(([a, b]) => {
+    if (a === b) return C.dirToCompass(a);
+    const span = ((b - a) + 360) % 360;
+    if (span < 135) return `${C.dirToCompass(a)}–${C.dirToCompass(b)}`;
+    const mid = (a + span / 2) % 360;
+    const card = ['N', 'E', 'S', 'W'][Math.round(mid / 90) % 4];
+    return `${C.dirToCompass(a)}–${card}–${C.dirToCompass(b)}`;
+  }).join(', ');
+}
+function windVerdict(site, dir) {
+  if (dir == null || site.sectorUnknown) return { cls: 'w-unk', word: '' };
+  if (!C.dirAllowed(dir, site._degs)) return { cls: 'w-bad', word: 'outside the launch' };
+  const off = C.axisOffset(dir, site);
+  return off <= 20 ? { cls: 'w-good', word: 'straight in' } : { cls: 'w-warn', word: `${off}° off axis` };
+}
+function windIndicator(site, wind) {
+  const S = 66, c = S / 2, r = 19;
+  let p = `<svg class="wind-ind" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" aria-hidden="true">`;
+  p += `<circle cx="${c}" cy="${c}" r="${r}" class="wi-ring"${site.sectorUnknown ? ' stroke-dasharray="3 3"' : ''}/>`;
+  for (const [a, b] of launchArcs(site)) {
+    const from = a - 22.5, to = (b >= 360 ? 360 : b) + 22.5;
+    if (to - from >= 360) { p += `<circle cx="${c}" cy="${c}" r="${r}" class="wi-fan"/>`; continue; }
+    const [x1, y1] = polar(c, c, r, from), [x2, y2] = polar(c, c, r, to);
+    p += `<path d="M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x2} ${y2} Z" class="wi-fan"/>`;
+  }
+  const [nx, ny] = polar(c, c, r + 6, 0);
+  p += `<text x="${nx}" y="${ny + 3}" text-anchor="middle" class="wi-n">N</text>`;
+  if (wind && wind.dir != null && wind.max >= 5) {
+    /* tail outside the circle on the side the wind comes from, head near the centre */
+    const [tx, ty] = polar(c, c, r + 11, wind.dir), [hx, hy] = polar(c, c, 3, wind.dir);
+    const [h1x, h1y] = polar(hx, hy, 6, wind.dir + 32), [h2x, h2y] = polar(hx, hy, 6, wind.dir - 32);
+    p += `<g class="wi-arrow ${wind.cls}"><line x1="${tx}" y1="${ty}" x2="${hx}" y2="${hy}"/>
+      <path d="M ${hx} ${hy} L ${h1x} ${h1y} L ${h2x} ${h2y} Z"/></g>`;
+  } else {
+    p += `<circle cx="${c}" cy="${c}" r="2.5" class="wi-calm"/>`;
+  }
+  return p + '</svg>';
+}
+
+/* ---------------- card text: one decisive sentence ---------------- */
+const fmtH = h => `${h}:00`;
+function dominantGate(hours) {
+  const order = ['storm', 'rain', 'direction', 'aloftwind', 'wind', 'gust', 'gustspread', 'cape'];
+  const count = {};
+  for (const h of hours) for (const g of h.gates) count[g] = (count[g] || 0) + 1;
+  let best = null;
+  for (const g of order) if (count[g] && (!best || count[g] > count[best])) best = g;
+  return best;
+}
+function gatePhrase(g, day, site) {
   const s = day.stats;
-  const TAG_LABEL = { xc:'XC', thermals:'thermals', soaring:'soaring', flatland:'flatland', winch:'winch', hike:'hike&fly' };
-  const tagChips = (site.tags || []).map(t => `<span class="chip chip-tag">${TAG_LABEL[t] || t}</span>`).join('')
-    + (site.country ? `<span class="chip chip-tag">${site.country}</span>` : '');
-  const meta = [
-    site.dist != null ? `${Math.round(site.dist)} km away` : null,
+  switch (g) {
+    case 'storm':      return 'storm risk';
+    case 'rain':       return 'rain';
+    case 'direction':  return `wind from ${s.badDir} — launch faces ${launchFacing(site)}`;
+    case 'aloftwind':  return `too windy at launch height, up to ${s.aloftMax} km/h`;
+    case 'wind':       return `too windy, up to ${s.windMaxSeen} km/h`;
+    case 'gust':       return `gusts up to ${s.gustMax} km/h`;
+    case 'gustspread': return 'gusty, turbulent air';
+    case 'cape':       return 'unstable air, overdevelopment risk';
+    default:           return '';
+  }
+}
+const cap = t => t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+function cardWind(day) {
+  const fly = day.hours.filter(x => x.state === 'good' || x.state === 'ok');
+  const pool = fly.length ? fly : day.hours;
+  const sp = pool.map(x => x.raw.wind);
+  return { dir: pool.length ? C.meanDir(pool.map(x => x.raw.dir)) : null,
+           min: Math.round(Math.min(...sp)), max: Math.round(Math.max(...sp)) };
+}
+function cardSummary(day, site, wind, wv) {
+  const w = day.window;
+  const stormHrs = day.hours.filter(x => x.gates.includes('storm')).map(x => x.hour);
+  if (day.score === 0) {
+    const g = dominantGate(day.hours);
+    if (g) return { cls: g === 'storm' ? 's-storm' : '', text: cap(g === 'storm' ? `Storm risk ${fmtH(stormHrs[0])}–${fmtH(stormHrs[stormHrs.length - 1] + 1)}` : gatePhrase(g, day, site)) };
+    if (day.hours.some(x => x.state === 'soft')) return { cls: '', text: 'Thermals too strong for this profile' };
+    return { cls: '', text: 'No usable window for this profile' };
+  }
+  const windTxt = `${C.dirToCompass(wind.dir)} ${wind.min}–${wind.max} km/h${wv.word ? ', ' + wv.word : ''}`;
+  const win = `${w.len <= 3 ? 'Short window' : 'Flyable'} ${fmtH(w.from)}–${fmtH(w.to + 1)}`;
+  if (stormHrs.length) return { cls: 's-storm', text: `Storm risk from ${fmtH(stormHrs[0])} — fly ${fmtH(w.from)}–${fmtH(w.to + 1)} only` };
+  if (day.score <= 5) {
+    const after = day.hours.filter(x => x.hour > w.to);
+    const g = dominantGate(after.length ? after : day.hours);
+    const lim = g ? gatePhrase(g, day, site) : '';
+    return { cls: '', text: `${win}${lim ? ' · then ' + lim : ' · ' + windTxt}${site.sectorUnknown ? ' · launch directions unknown' : ''}` };
+  }
+  return { cls: '', text: `${win} · ${windTxt}${site.sectorUnknown ? ' · launch directions unknown' : ''}` };
+}
+
+/* ---------------- the card ---------------- */
+const openCards = new Set();
+let openCardsTouched = false;
+function siteCard(day, rank) {
+  const site = day.site, s = day.stats;
+  const wind = cardWind(day);
+  const wv = windVerdict(site, wind.dir);
+  wind.cls = wv.cls;
+  const sum = cardSummary(day, site, wind, wv);
+  const open = openCards.has(site.id) || (!openCardsTouched && rank === 1 && day.score >= C.FLYABLE_SCORE);
+  const cells = day.hours.map(h => `<div class="cell c-${h.state}" title="${hourTooltip(h)}"></div>`).join('');
+  const sub = [
+    site.dist != null ? `${Math.round(site.dist)} km` : null,
+    site.sectorUnknown ? null : `launch ${launchFacing(site)}`,
     site.alt ? `${site.alt} m` : null,
-    site.sectorUnknown ? 'takeoff dirs unknown' : `takeoff ${site.dirs.join(' ')}`,
-  ].filter(Boolean).join(' \u00b7 ');
-  const profBits = [
-    s.baseTyp != null ? `base ~${s.baseTyp} m` : null,
-    s.topMax != null ? `tops ~${s.topMax} m` : null,
-    s.aloftMax ? `@launch \u2264${s.aloftMax} km/h` : null,
-  ].filter(Boolean).join(' \u00b7 ');
-  return `<article class="card ${verdictClass(day.score)}">
+  ].filter(Boolean).join(' · ');
+  const windCap = wind.dir != null && wind.max >= 5 ? `${C.dirToCompass(wind.dir)} ${wind.min}–${wind.max}` : 'calm';
+  const indTitle = `Launch faces ${launchFacing(site)}. ` + (wind.max >= 5
+    ? `Forecast wind from ${C.dirToCompass(wind.dir)}, ${wind.min}–${wind.max} km/h${wv.word ? ', ' + wv.word : ''}.`
+    : 'Forecast wind calm.');
+
+  const storm = day.warnings.includes('storm') ? 'high — storms forecast'
+    : s.capeMax > 1400 ? 'moderate' : 'low';
+  const facts = [
+    s.aloftMax ? ['Wind at launch', `up to ${s.aloftMax} km/h`] : null,
+    ['Ground wind', `${s.windMin}–${s.windMaxSeen} km/h`],
+    ['Gusts', `up to ${s.gustMax} km/h`],
+    s.baseTyp != null ? ['Cloudbase', s.topMax != null && s.baseTyp > s.topMax + 200 ? 'blue day, no cumulus' : `~${s.baseTyp} m`] : null,
+    s.topMax != null ? ['Thermal tops', `~${s.topMax} m${site.alt ? ` (+${Math.max(0, Math.round((s.topMax - site.alt) / 50) * 50)} m)` : ''}`] : null,
+    ['Thermals', C.thermalLabel(s.thermalPeak)],
+    ['Storm risk', storm],
+    s.capMin != null && site.alt && s.capMin < site.alt + 900 ? ['Inversion', `caps climbs near ${Math.round(s.capMin / 50) * 50} m`] : null,
+  ].filter(Boolean);
+  const limits = day.reasons.filter(r => !/^(Usable window|In-sector|Thermal potential|Cloudbase|Blue day|Inversion caps)/.test(r) && !/^[A-Z]{1,3} wind \d/.test(r));
+  const TAG_LABEL = { xc: 'XC', thermals: 'Thermals', soaring: 'Soaring', flatland: 'Flatland', winch: 'Winch', hike: 'Hike and fly' };
+  const tags = (site.tags || []).map(t => `<span class="chip chip-tag">${TAG_LABEL[t] || t}</span>`).join('');
+  const watched = isWatched(site.id);
+  const acts = [
+    site.link ? `<a class="site-act" href="${site.link}" target="_blank" rel="noopener">Site page ↗</a>` : '',
+    `<button class="site-act watch-act${watched ? ' on' : ''}" data-watch="${site.id}">${watched ? (state.view === 'watch' ? 'Remove from my sites' : '★ In my sites') : '☆ Add to my sites'}</button>`,
+    state.view === 'explore' ? `<button class="site-act" data-hide="${siteKey(site)}">Hide site</button>` : '',
+  ].join(' ');
+
+  return `<article class="card ${verdictClass(day.score)}${open ? ' open' : ''}" data-card="${site.id}">
     <div class="card-head">
-      ${compassSVG(site, meanW, inSector)}
-      <div class="titles">
-        <div class="rankline"><span class="rank">#${rank}</span>${tagChips}</div>
-        <h2>${site.name}</h2>
-        <p class="meta">${meta}</p>
-      </div>
-      <div class="score">${gaugeSVG(day.score)}<div class="verdict">${day.verdict}</div></div>
+      <div class="wind-box" title="${indTitle}">${windIndicator(site, wind)}<span class="wind-cap ${wind.cls}">${windCap}</span></div>
+      <div class="titles"><h2>${site.name}</h2><p class="meta">${sub}</p></div>
+      <div class="score"><span class="score-pill">${day.score}</span><div class="verdict">${day.verdict}</div></div>
     </div>
-    <div class="strip-wrap">${bracket}<div class="strip">${cells}</div>
-      <div class="ticks"><span>8</span><span>12</span><span>16</span><span>20</span></div></div>
-    <ul class="reasons">${reasons || '<li>No usable window for this profile.</li>'}</ul>
-    <p class="stats">wind ${s.windMin}\u2013${s.windMaxSeen} km/h \u00b7 gusts \u2264${s.gustMax}${profBits ? ' \u00b7 ' + profBits : ''} \u00b7 CAPE \u2264${s.capeMax} \u00b7 thermals ${C.thermalLabel(s.thermalPeak)}</p>
-    <p class="note">${site.link ? `<a class="site-act" href="${site.link}" target="_blank" rel="noopener">PE page \u2197</a> ` : ''}<button class="site-act watch-act${isWatched(site.id) ? ' on' : ''}" data-watch="${site.id}">${isWatched(site.id) ? (state.view === 'watch' ? 'remove from my sites' : '\u2605 in my sites') : '\u2606 add to my sites'}</button>${state.view === 'explore' ? ` <button class="site-act" data-hide="${siteKey(site)}">hide site</button>` : ''}</p>
+    <p class="summary ${sum.cls}">${sum.text}</p>
+    <div class="strip">${cells}</div>
+    <div class="ticks"><span>8</span><span>12</span><span>16</span><span>20</span></div>
+    <div class="details">
+      <dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+      ${limits.length ? `<ul class="reasons">${limits.map(r => `<li class="${/^[⚡⚠]/.test(r) ? 'r-storm' : ''}">${r}</li>`).join('')}</ul>` : ''}
+      <div class="card-foot">${tags}<span class="acts">${acts}</span></div>
+    </div>
+    <button class="more" data-more="${site.id}" aria-expanded="${open}">${open ? 'Hide details' : 'Details'}</button>
   </article>`;
 }
 
@@ -708,6 +806,17 @@ function render() {
   document.querySelectorAll('[data-hide]').forEach(b =>
     b.addEventListener('click', () => hideSite(b.dataset.hide)));
   const un = $('#unhide'); if (un) un.addEventListener('click', unhideAll);
+  document.querySelectorAll('[data-card]').forEach(card => card.addEventListener('click', e => {
+    if (e.target.closest('a, button:not([data-more])')) return;
+    if (!openCardsTouched) {
+      document.querySelectorAll('.card.open[data-card]').forEach(c => openCards.add(c.dataset.card));
+      openCardsTouched = true;
+    }
+    const id = card.dataset.card, isOpen = card.classList.toggle('open');
+    if (isOpen) openCards.add(id); else openCards.delete(id);
+    const m = card.querySelector('[data-more]');
+    if (m) { m.textContent = isOpen ? 'Hide details' : 'Details'; m.setAttribute('aria-expanded', String(isOpen)); }
+  }));
   document.querySelectorAll('[data-watch]').forEach(b => b.addEventListener('click', () => {
     const site = state.sites.find(s => s.id === b.dataset.watch);
     if (!site) return;
